@@ -190,7 +190,7 @@ body.done .nomctl{display:none !important}
    <button class="op-only" onclick="menuDo(()=>setView('players'))">🔍 Available players</button>
    <div class="sep op-only"></div>
    <button class="op-only" onclick="menuDo(simulateDraft)">🎲 Simulate full draft</button>
-   <button class="op-only" onclick="menuDo(exportXLSX)">📊 Export to Excel (.xlsx)</button>
+   <button onclick="menuDo(exportXLSX)">📊 Export to Excel (.xlsx)</button>
    <button class="op-only" onclick="menuDo(exportJSON)">⬇ Export backup (JSON)</button>
    <button class="op-only" onclick="menuDo(()=>document.getElementById('importFile').click())">⬆ Import backup</button>
    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(this)">
@@ -209,16 +209,13 @@ body.done .nomctl{display:none !important}
     <span id="homeCloud" class="cloudbadge"><span class="dot"></span><span id="homeCloudTxt">checking…</span></span>
    </div>
    <p class="mut" style="font-size:13px">Run a live auction on the big screen and share a read-only link so the league can follow along on their phones.</p>
-   <div class="tag">Draft name</div>
-   <input id="draftName" placeholder="e.g. POE 2026, or Test Draft #1" style="width:100%;font-size:15px" value="">
    <div class="roles">
-    <button class="role" id="roleOperate" onclick="homeCreate()"><b>▶ Create &amp; operate</b><span>Start a new shared draft (or reopen an existing one by name). You enter every pick; others watch live.</span></button>
-    <button class="role" id="roleWatch" onclick="homeWatch()"><b>👁 Join to watch</b><span>Follow an existing draft by name — read-only board, pick log, and available players.</span></button>
+    <button class="role" id="roleOperate" onclick="openNewDraft()"><b>▶ Create &amp; operate a new draft</b><span>Name a brand-new shared draft. You enter every pick; others follow along live.</span></button>
+    <button class="role" id="roleJoin" onclick="openDrafts()"><b>📋 Join an existing draft</b><span>Pick from all live/saved drafts and join to operate or watch (read-only).</span></button>
     <button class="role" onclick="homeLocal()"><b>💻 Local only (offline)</b><span>Run entirely on this device, no internet or sharing. Autosaves in this browser.</span></button>
    </div>
    <div class="err" id="homeErr" style="margin-top:10px"></div>
    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <button class="btn" id="browseBtn" onclick="openDrafts()">📂 Browse existing drafts</button>
     <button class="btn small" onclick="toggleTheme()">🌓 Light / dark</button>
     <button class="btn small" onclick="openCloudSetup()">⚙ Cloud setup (Firebase)</button>
     <span class="mut" id="cloudHint" style="font-size:12px"></span>
@@ -393,9 +390,25 @@ body.done .nomctl{display:none !important}
   <h2 style="font-size:36px;margin:6px 0 2px;letter-spacing:1.5px;color:var(--good)">DRAFT COMPLETE!</h2>
   <p class="mut" style="font-size:14px">Every roster is full. Good luck this season. 🏈</p>
   <div style="display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap">
-   <button class="btn primary op-only" onclick="hideComplete();exportXLSX()">📊 Export to Excel</button>
+   <button class="btn primary" onclick="hideComplete();exportXLSX()">📊 Export to Excel</button>
    <button class="btn" onclick="confettiBurst()">🎉 MORE CONFETTI!!!</button>
    <button class="btn" onclick="hideComplete()">Close</button>
+  </div>
+ </div>
+</div>
+
+<!-- ============ NEW DRAFT MODAL ============ -->
+<div class="overlay" id="newDraftOverlay" onclick="if(event.target===this)closeNewDraft()">
+ <div class="modal">
+  <h3>New draft</h3>
+  <p class="mut" style="font-size:12.5px">Name your draft. You'll operate it and can share a read-only link with the league.</p>
+  <div class="mrow"><label style="width:88px">Draft name</label>
+   <input id="newDraftName" style="flex:1" placeholder="e.g. POE 2026" autocomplete="off" onkeydown="if(event.key==='Enter')createNewDraft()">
+  </div>
+  <div class="err" id="newDraftErr"></div>
+  <div style="display:flex;gap:10px;margin-top:8px">
+   <button class="btn primary" style="flex:1" onclick="createNewDraft()">Create &amp; operate</button>
+   <button class="btn" onclick="closeNewDraft()">Cancel</button>
   </div>
  </div>
 </div>
@@ -659,12 +672,9 @@ function showHome(){
  const badge=document.getElementById('homeCloud'), txt=document.getElementById('homeCloudTxt');
  badge.className='cloudbadge '+(ok?'live':'off');
  txt.textContent=ok?'Cloud ready':'Cloud not configured';
- document.getElementById('roleOperate').disabled=false; // operate works locally too if no cloud (falls back)
- document.getElementById('roleWatch').disabled=!ok;
- document.getElementById('browseBtn').disabled=!ok;
+ document.getElementById('roleOperate').disabled=false; // create works locally too if no cloud (falls back)
+ document.getElementById('roleJoin').disabled=!ok;
  document.getElementById('cloudHint').textContent=ok?'':'Add Firebase config to enable sharing.';
- // prefill last draft name
- try{const ln=localStorage.getItem('poe-last-name'); if(ln&&!document.getElementById('draftName').value)document.getElementById('draftName').value=ln;}catch(e){}
 }
 function enterApp(){
  document.getElementById('vHome').style.display='none';
@@ -679,29 +689,30 @@ function updateCloudBadge(){
  b.style.display=''; b.className='cloudbadge live';
  t.textContent=(MODE==='operator'?'Operating · ':'Watching · ')+(S.name||DRAFT_ID);
 }
-function homeCreate(){
- const nm=document.getElementById('draftName').value.trim();
- const err=document.getElementById('homeErr'); err.textContent='';
- if(!nm){err.textContent='Enter a draft name first.';return;}
+// new-draft modal (create & operate a brand-new draft only)
+function openNewDraft(){
+ document.getElementById('newDraftName').value='';
+ document.getElementById('newDraftErr').textContent='';
+ document.getElementById('newDraftOverlay').classList.add('show');
+ setTimeout(()=>document.getElementById('newDraftName').focus(),50);
+}
+function closeNewDraft(){ document.getElementById('newDraftOverlay').classList.remove('show'); }
+function createNewDraft(){
+ const nm=document.getElementById('newDraftName').value.trim();
+ const err=document.getElementById('newDraftErr'); err.textContent='';
+ if(!nm){err.textContent='Enter a draft name.';return;}
  try{localStorage.setItem('poe-last-name',nm);}catch(e){}
  if(cloudAvailable() && fbInit()){
-   MODE='operator'; RO=false; DRAFT_ID=slug(nm);
-   S=freshState(); S.name=nm;
-   cloudCreate().then(()=>{ cloudSubscribe(); enterApp(); })
-     .catch(e=>{err.textContent='Cloud error: '+e.message;});
+   const id=slug(nm);
+   db.collection('drafts').doc(id).get().then(d=>{
+     if(d.exists){ err.textContent='A draft with that name already exists — use “Join an existing draft.”'; return; }
+     MODE='operator'; RO=false; DRAFT_ID=id; S=freshState(); S.name=nm;
+     cloudCreate().then(()=>{ cloudSubscribe(); closeNewDraft(); enterApp(); })
+       .catch(e=>{err.textContent='Cloud error: '+e.message;});
+   }).catch(e=>{err.textContent='Cloud error: '+e.message;});
  } else {
-   // no cloud: operate locally
-   MODE='local'; RO=false; S=freshState(); S.name=nm; enterApp();
+   MODE='local'; RO=false; DRAFT_ID=null; S=freshState(); S.name=nm; closeNewDraft(); enterApp();
  }
-}
-function homeWatch(){
- const nm=document.getElementById('draftName').value.trim();
- const err=document.getElementById('homeErr'); err.textContent='';
- if(!nm){err.textContent='Enter the draft name to watch.';return;}
- if(!(cloudAvailable()&&fbInit())){err.textContent='Cloud is not configured on this device.';return;}
- MODE='spectator'; RO=true; DRAFT_ID=slug(nm);
- S=freshState(); S.name=nm;
- cloudSubscribe(); enterApp();
 }
 function homeLocal(){
  MODE='local'; RO=false; DRAFT_ID=null;
