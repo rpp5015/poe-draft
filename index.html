@@ -11,6 +11,12 @@
 :root{
  --bg:#0b1017;--panel:#131b26;--panel2:#1a2432;--line:#253140;--hl:#22303f;
  --txt:#e8eef4;--mut:#8ba1b5;--acc:#4cc2ff;--good:#3fd07f;--bad:#ff6b6b;--warn:#ffc857;
+ --chip:#1b2533;--empty:#0f1620;--clockbg:#12263a;--upbg:#0e1520;--upcolor:#4a5a6b;
+}
+body.light{
+ --bg:#f3f6fa;--panel:#ffffff;--panel2:#eef2f7;--line:#d3dbe4;--hl:#e5ebf2;
+ --txt:#111a24;--mut:#5b6b7b;--acc:#1f6feb;--good:#1a8f4c;--bad:#d23b3b;--warn:#a5680a;
+ --chip:#e5ebf2;--empty:#f0f3f7;--clockbg:#dbe8f7;--upbg:#f6f8fb;--upcolor:#9aa8b6;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
@@ -40,7 +46,7 @@ main{padding:6px 4px 8px}
 .bc.lbl{background:none;color:var(--mut);font-weight:700;justify-content:flex-end;font-size:11px;padding:3px 2px 3px 0}
 .bc .pname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 .bc .pp{margin-left:4px;font-weight:800;color:var(--warn);font-size:12.5px}
-.bc.empty{background:#0f1620}
+.bc.empty{background:var(--empty)}
 .bc.nom-turn{outline:2px solid var(--acc)}
 /* ---- detailed pick log (matches spreadsheet) ---- */
 .plogwrap{flex:1 1 0;min-height:0;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
@@ -49,9 +55,9 @@ table.plog th{font-size:10.5px;padding:5px 8px}
 table.plog td{padding:4px 8px;border-bottom:1px solid rgba(37,49,64,.6)}
 table.plog tr.pl-row{cursor:pointer}
 table.plog tr.pl-row:hover td{filter:brightness(1.25)}
-table.plog tr.clock td{background:#12263a;color:var(--acc);font-weight:700}
+table.plog tr.clock td{background:var(--clockbg);color:var(--acc);font-weight:700}
 table.plog td.dim{color:var(--mut)}
-table.plog tr.up td{color:#4a5a6b;background:#0e1520}
+table.plog tr.up td{color:var(--upcolor);background:var(--upbg)}
 table.plog tr.up td .slot{letter-spacing:2px}
 /* ---- page nav ---- */
 .pgbtn{background:none;border:none;color:var(--mut);padding:8px 14px;font-size:14.5px;font-weight:700;border-bottom:2px solid transparent;border-radius:0}
@@ -139,7 +145,7 @@ tr.gone .gname b{text-decoration:line-through}
 .home .role b{font-size:15px}
 .home .role span{display:block;color:var(--mut);font-size:12.5px;margin-top:3px;font-weight:400}
 .home .role[disabled]{opacity:.45;cursor:not-allowed}
-.cloudbadge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:2px 9px;border-radius:99px;background:#1b2533;color:var(--mut)}
+.cloudbadge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:2px 9px;border-radius:99px;background:var(--chip);color:var(--mut)}
 .cloudbadge.live{background:#143a27;color:var(--good)}
 .cloudbadge.off{background:#3a1717;color:var(--bad)}
 .cloudbadge .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -167,7 +173,7 @@ body.done .nomctl{display:none !important}
 <body>
 <header id="appHeader" style="display:none">
  <h1>🏈 POE Auction Draft</h1>
- <span id="phasePill" class="pill" style="background:#1b2533;color:var(--mut)">Setup</span>
+ <span id="phasePill" class="pill" style="background:var(--chip);color:var(--mut)">Setup</span>
  <span id="cloudBadge" class="cloudbadge" style="display:none"><span class="dot"></span><span id="cloudBadgeTxt"></span></span>
  <span id="pageNav" style="display:none;margin-left:10px">
   <button class="pgbtn on" id="navBoard" onclick="setView('board')">Draft Board</button>
@@ -180,6 +186,7 @@ body.done .nomctl{display:none !important}
   <button class="menubtn" onclick="toggleMenu(event)" title="Menu">⋯</button>
   <div class="menulist">
    <button onclick="menuDo(shareLink)">🔗 Share link</button>
+   <button onclick="menuDo(toggleTheme)">🌓 Light / dark mode</button>
    <button class="op-only" onclick="menuDo(()=>setView('players'))">🔍 Available players</button>
    <div class="sep op-only"></div>
    <button class="op-only" onclick="menuDo(simulateDraft)">🎲 Simulate full draft</button>
@@ -212,6 +219,7 @@ body.done .nomctl{display:none !important}
    <div class="err" id="homeErr" style="margin-top:10px"></div>
    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <button class="btn" id="browseBtn" onclick="openDrafts()">📂 Browse existing drafts</button>
+    <button class="btn small" onclick="toggleTheme()">🌓 Light / dark</button>
     <button class="btn small" onclick="openCloudSetup()">⚙ Cloud setup (Firebase)</button>
     <span class="mut" id="cloudHint" style="font-size:12px"></span>
    </div>
@@ -251,7 +259,7 @@ body.done .nomctl{display:none !important}
    </div>
    <div class="card" style="margin-top:8px;padding:8px 14px;flex:none">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-     <span id="roundPos" class="pill" style="background:#1b2533;color:var(--txt);font-size:14px"></span>
+     <span id="roundPos" class="pill" style="background:var(--chip);color:var(--txt);font-size:14px"></span>
      <b class="nomctl" style="font-size:14px">Nominating:</b>
      <span id="nomNow" class="pill nomctl" style="background:var(--acc);color:#04121d;font-size:14px"></span>
      <div class="autocomplete op-only nomctl">
@@ -702,6 +710,9 @@ function homeLocal(){
  enterApp();
 }
 function goHome(){ if(MODE==='local'){try{localStorage.setItem(LSKEY,JSON.stringify(S));}catch(e){}} cloudUnsub(); showHome(); }
+// theme (per-device display preference, not synced)
+function applyTheme(){ try{document.body.classList.toggle('light',localStorage.getItem('poe-theme')==='light');}catch(e){} }
+function toggleTheme(){ const light=!document.body.classList.contains('light'); document.body.classList.toggle('light',light); try{localStorage.setItem('poe-theme',light?'light':'dark');}catch(e){} }
 // header dropdown menu
 function toggleMenu(e){ e.stopPropagation(); document.getElementById('hdrMenu').classList.toggle('open'); }
 function menuDo(fn){ document.getElementById('hdrMenu').classList.remove('open'); fn(); }
@@ -1446,6 +1457,7 @@ function resetAll(){
 }
 function freshState(){return {phase:'setup',teams:[...DEFAULT_TEAMS],picks:[],nomIdx:0,minBidRule:true,colors:{},nextSeq:0,showDrafted:true,custom:[]};}
 // ============ INIT ============
+applyTheme();
 try{const v=localStorage.getItem('poe-view'); if(v)localView=v;}catch(e){}
 (function(){
  const q=new URLSearchParams(location.search);
