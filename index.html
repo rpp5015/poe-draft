@@ -1528,7 +1528,12 @@ let kgUnsub=null;
 function kgRef(){ return db.collection('keepergame').doc(KG_ID); }
 function kgNorm(v){ if(!v)return {keepers:{},best:null,worst:null};
  return v.keepers!==undefined ? {keepers:v.keepers||{},best:v.best||null,worst:v.worst||null} : {keepers:v,best:null,worst:null}; }
-function kgLoadDraft(){ kgDraft=kgMe&&kgVotes[kgMe]?kgNorm(JSON.parse(JSON.stringify(kgVotes[kgMe]))):{keepers:{},best:null,worst:null}; }
+function kgLoadDraft(){
+ kgDraft=kgMe&&kgVotes[kgMe]?kgNorm(JSON.parse(JSON.stringify(kgVotes[kgMe]))):{keepers:{},best:null,worst:null};
+ // drop any selections for players no longer in the current candidate lists
+ Object.keys(kgDraft.keepers).forEach(t=>{ const cand=KEEPER_CANDS[t]||[];
+   kgDraft.keepers[t]=(kgDraft.keepers[t]||[]).filter(p=>cand.includes(p)); });
+}
 function gameEnter(){
  document.getElementById('vHome').style.display='none';
  document.getElementById('appHeader').style.display='none';
@@ -1547,6 +1552,16 @@ function gameEnter(){
 function gameExit(){ if(kgUnsub){kgUnsub();kgUnsub=null;} document.getElementById('vGame').style.display='none'; showHome(); }
 function kgPickMe(name){ kgMe=name; try{localStorage.setItem('poe-kg-me',name);}catch(e){} kgLoadDraft(); kgView='vote'; renderGame(); }
 function kgChangeMe(){ kgMe=null; renderGame(); }
+function kgReset(){
+ if(!confirm('Reset the keeper game for EVERYONE?\nThis permanently deletes all submitted votes so the league can start fresh.'))return;
+ kgDraft={keepers:{},best:null,worst:null}; kgView='vote';
+ if(cloudAvailable()&&(fbReady||fbInit())){
+   kgRef().set({votes:{},updatedAt:Date.now()})   // no merge -> wipes all votes
+     .then(()=>{ kgVotes={}; renderGame(); }).catch(e=>alert('Reset failed: '+e.message));
+ } else {
+   kgVotes={}; try{localStorage.removeItem('poe-kg-votes');}catch(e){} renderGame();
+ }
+}
 function kgToggle(team,player){
  if(team===kgMe)return;
  const cur=kgDraft.keepers[team]||[];
@@ -1559,9 +1574,11 @@ function kgSetBW(kind,team){ kgDraft[kind]=(kgDraft[kind]===team?null:team); ren
 function kgSubmit(){
  if(!kgDraft.best||!kgDraft.worst){ alert('Also pick the team you think has the BEST and the WORST keepers before submitting.'); return; }
  GAME_TEAMS.forEach(t=>{ if(t!==kgMe && !kgDraft.keepers[t]) kgDraft.keepers[t]=[]; });
- if(cloudAvailable()&&fbReady){
+ if(cloudAvailable()&&(fbReady||fbInit())){
+   // write only this voter's entry; merge preserves everyone else's votes
    kgRef().set({votes:{[kgMe]:kgDraft}, updatedAt:Date.now()},{merge:true})
-     .then(()=>{ kgView='results'; renderGame(); }).catch(e=>alert('Save failed: '+e.message));
+     .then(()=>{ kgVotes[kgMe]=JSON.parse(JSON.stringify(kgDraft)); kgView='results'; renderGame(); })
+     .catch(e=>alert('Save failed: '+e.message));
  } else {
    kgVotes[kgMe]=JSON.parse(JSON.stringify(kgDraft));
    try{localStorage.setItem('poe-kg-votes',JSON.stringify(kgVotes));}catch(e){}
@@ -1583,7 +1600,8 @@ function renderGame(){
  const voted=new Set(Object.keys(kgVotes));
  // 1) identity picker (with done marks)
  if(!kgMe){
-   b.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><h2 style="flex:1;margin:0">🔮 Keeper Predictions</h2>
+   b.innerHTML=`<div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">🔮 Keeper Predictions</h2>
+     <button class="btn small danger" onclick="kgReset()">↺ Reset all votes</button>
      <button class="btn small" onclick="gameExit()">← Home</button></div>
      <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock at ${RESULTS_MIN}.</p>
      <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t);
