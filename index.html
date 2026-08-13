@@ -1754,9 +1754,9 @@ function renderGame(){
      <button class="btn small" onclick="gameExit()">← Home</button></div>
      <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock <b>${KG_UNLOCK_LABEL}</b>, or when the commissioner opens them.</p>
      ${KG_WARN}
-     <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t); const mine=kgOwners[t]===kgDeviceId(); const lockedOther=done&&!mine;
+     <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t); const owner=kgOwners[t]; const mine=owner===kgDeviceId(); const lockedOther=owner&&!mine;
        const style=lockedOther?'opacity:.5;cursor:not-allowed':(done?'border-color:var(--good);color:var(--good)':'');
-       const cap=lockedOther?'<div class="gcap">🔒 taken</div>':(done?'<div class="gcap" style="color:var(--good)">voted · you</div>':'');
+       const cap=lockedOther?'<div class="gcap">🔒 taken</div>':(mine?'<div class="gcap" style="color:var(--good)">voted · you</div>':(done?'<div class="gcap" style="color:var(--good)">voted · tap to claim</div>':''));
        return `<button class="gme" style="${style}" ${lockedOther?'disabled':''} onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${lockedOther?'🔒 ':(done?'✓ ':'')}${t}${cap}</button>`;}).join('')}</div>`;
    return;
  }
