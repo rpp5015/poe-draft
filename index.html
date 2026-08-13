@@ -171,6 +171,9 @@ tr.gone .gname b{text-decoration:line-through}
 .gopt .box{align-self:flex-start;margin-top:2px}
 .kval{font-weight:400;font-size:11px;color:var(--mut2);margin-top:2px}
 .kval b{color:var(--warn)}
+.kwarn{display:flex;gap:9px;align-items:flex-start;background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:10px;padding:10px 12px;margin:4px 0 12px;font-size:12.5px;line-height:1.45;color:var(--txt)}
+.kwarn .ic{font-size:16px;line-height:1.2}
+.kwarn b{color:var(--warn)}
 .gopt.ro{cursor:default}.gopt.ro:hover{background:none}
 .gbar{height:22px;border-radius:5px;background:var(--panel2);overflow:hidden;position:relative;margin-top:3px}
 .gbar>span{position:absolute;left:0;top:0;bottom:0;background:var(--acc);opacity:.85}
@@ -1712,6 +1715,7 @@ function kgSetView(v){
  }
  kgView=v; renderGame();
 }
+const KG_WARN=`<div class="kwarn"><span class="ic">⚠️</span><span>All keeper values shown are <b>purely speculative</b> estimates and are <b>not locked in</b> until our great and powerful commissioner <b>Brad</b> sends out the official values the weekend before the draft.</span></div>`;
 function renderGame(){
  const b=document.getElementById('gameBody');
  const voted=new Set(Object.keys(kgVotes));
@@ -1721,6 +1725,7 @@ function renderGame(){
      <button class="btn small danger" onclick="kgReset()">↺ Reset all votes</button>
      <button class="btn small" onclick="gameExit()">← Home</button></div>
      <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock at ${RESULTS_MIN}.</p>
+     ${KG_WARN}
      <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t);
        return `<button class="gme" style="${done?'border-color:var(--good);color:var(--good)':''}" onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${done?'✓ ':''}${t}${done?'<div class="gcap" style="color:var(--good)">voted</div>':''}</button>`;}).join('')}</div>`;
    return;
@@ -1735,7 +1740,7 @@ function renderGame(){
      <button class="btn small ${kgView==='vote'?'primary':''}" onclick="kgSetView('vote')">My predictions</button>
      <button class="btn small ${kgView==='results'?'primary':''}" onclick="kgSetView('results')">Results</button>
      <span class="mut" style="font-size:12px">${voters}/12 voted${voters<RESULTS_MIN?' · '+(RESULTS_MIN-voters)+' more to unlock':''}</span>
-   </div>`;
+   </div>${KG_WARN}`;
  if(kgView==='results'){
    if(kgResultsReady()){ b.innerHTML=h+renderKgResults(); }
    else { b.innerHTML=h+`<div class="gcard" style="text-align:center;padding:30px 14px"><div style="font-size:40px">🔒</div>
