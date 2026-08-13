@@ -1645,9 +1645,13 @@ const KG_UNLOCK_HASH='24d15368a9a290d5ac216a110e717a7c22958e4e6fff1ebb96d484afd2
 let kgMe=null;              // who the voter is
 let kgDraft={keepers:{},best:null,worst:null}; // this device's in-progress vote
 let kgVotes={};            // all voters' submitted votes {voter:{keepers,best,worst}}
+let kgOwners={};           // {voter: deviceId} — which device owns each submitted vote
 let kgUnlocked=false;      // commissioner unlock flag (from Firebase)
 let kgView='vote';         // 'vote' | 'results'
 let kgUnsub=null;
+function kgDeviceId(){ let d=null; try{d=localStorage.getItem('poe-kg-device');}catch(e){}
+ if(!d){ d='d'+Math.random().toString(36).slice(2)+Date.now().toString(36); try{localStorage.setItem('poe-kg-device',d);}catch(e){} }
+ return d; }
 function kgRef(){ return db.collection('keepergame').doc(KG_ID); }
 function kgNorm(v){ if(!v)return {keepers:{},best:null,worst:null};
  return v.keepers!==undefined ? {keepers:v.keepers||{},best:v.best||null,worst:v.worst||null} : {keepers:v,best:null,worst:null}; }
@@ -1665,7 +1669,7 @@ function gameEnter(){
  kgView='vote';
  if(cloudAvailable()&&fbInit()){
    if(kgUnsub)kgUnsub();
-   kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgUnlocked=!!(d.exists&&d.data().unlocked); kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
+   kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgOwners=(d.exists&&d.data().owners)||{}; kgUnlocked=!!(d.exists&&d.data().unlocked); kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
  } else {
    try{kgVotes=JSON.parse(localStorage.getItem('poe-kg-votes')||'{}');}catch(e){kgVotes={};}
    kgLoadDraft();
@@ -1673,7 +1677,13 @@ function gameEnter(){
  renderGame();
 }
 function gameExit(){ if(kgUnsub){kgUnsub();kgUnsub=null;} document.getElementById('vGame').style.display='none'; showHome(); }
-function kgPickMe(name){ kgMe=name; try{localStorage.setItem('poe-kg-me',name);}catch(e){} kgLoadDraft(); kgView='vote'; renderGame(); }
+function kgPickMe(name){
+ const owner=kgOwners[name];
+ if(owner && owner!==kgDeviceId()){
+   alert(name+' has already submitted their keeper picks on another device.\n\nTo protect everyone’s votes, you can only vote and view your own. If this is really you (new phone/browser), the commissioner can reset the game.');
+   return;
+ }
+ kgMe=name; try{localStorage.setItem('poe-kg-me',name);}catch(e){} kgLoadDraft(); kgView='vote'; renderGame(); }
 function kgChangeMe(){ kgMe=null; renderGame(); }
 function kgReset(){
  if(!confirm('Reset the keeper game for EVERYONE?\nThis permanently deletes all submitted votes so the league can start fresh.'))return;
@@ -1699,8 +1709,8 @@ function kgSubmit(){
  GAME_TEAMS.forEach(t=>{ if(t!==kgMe && !kgDraft.keepers[t]) kgDraft.keepers[t]=[]; });
  if(cloudAvailable()&&(fbReady||fbInit())){
    // write only this voter's entry; merge preserves everyone else's votes
-   kgRef().set({votes:{[kgMe]:kgDraft}, updatedAt:Date.now()},{merge:true})
-     .then(()=>{ kgVotes[kgMe]=JSON.parse(JSON.stringify(kgDraft)); kgView='results'; renderGame(); })
+   kgRef().set({votes:{[kgMe]:kgDraft}, owners:{[kgMe]:kgDeviceId()}, updatedAt:Date.now()},{merge:true})
+     .then(()=>{ kgVotes[kgMe]=JSON.parse(JSON.stringify(kgDraft)); kgOwners[kgMe]=kgDeviceId(); kgView='results'; renderGame(); })
      .catch(e=>alert('Save failed: '+e.message));
  } else {
    kgVotes[kgMe]=JSON.parse(JSON.stringify(kgDraft));
@@ -1744,8 +1754,10 @@ function renderGame(){
      <button class="btn small" onclick="gameExit()">← Home</button></div>
      <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock <b>${KG_UNLOCK_LABEL}</b>, or when the commissioner opens them.</p>
      ${KG_WARN}
-     <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t);
-       return `<button class="gme" style="${done?'border-color:var(--good);color:var(--good)':''}" onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${done?'✓ ':''}${t}${done?'<div class="gcap" style="color:var(--good)">voted</div>':''}</button>`;}).join('')}</div>`;
+     <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t); const mine=kgOwners[t]===kgDeviceId(); const lockedOther=done&&!mine;
+       const style=lockedOther?'opacity:.5;cursor:not-allowed':(done?'border-color:var(--good);color:var(--good)':'');
+       const cap=lockedOther?'<div class="gcap">🔒 taken</div>':(done?'<div class="gcap" style="color:var(--good)">voted · you</div>':'');
+       return `<button class="gme" style="${style}" ${lockedOther?'disabled':''} onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${lockedOther?'🔒 ':(done?'✓ ':'')}${t}${cap}</button>`;}).join('')}</div>`;
    return;
  }
  const voters=voted.size;
