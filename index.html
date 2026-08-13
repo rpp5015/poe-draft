@@ -1639,10 +1639,13 @@ function kgValLine(p){const v=KEEPER_VALS[p]; if(!v)return '';
  const parts=["'25 $"+v.a]; if(v.e!=null)parts.push('ESPN $'+v.e); if(v.y!=null)parts.push('Yahoo $'+v.y); if(v.f!=null)parts.push('FP $'+v.f);
  return '<div class="kval">'+parts.join(' · ')+' &nbsp;<b>keep ~$'+v.k+'</b></div>';}
 const KG_ID='poe-2026';
-const RESULTS_MIN=8;        // results stay hidden until this many people submit
+const KG_UNLOCK=new Date(2026,7,20,0,0,0).getTime();  // Thu Aug 20 2026, 12:00 AM
+const KG_UNLOCK_LABEL='Thursday, August 20 at 12:00 AM';
+const KG_UNLOCK_HASH='24d15368a9a290d5ac216a110e717a7c22958e4e6fff1ebb96d484afd2409fb4'; // sha256 of the admin unlock password
 let kgMe=null;              // who the voter is
 let kgDraft={keepers:{},best:null,worst:null}; // this device's in-progress vote
 let kgVotes={};            // all voters' submitted votes {voter:{keepers,best,worst}}
+let kgUnlocked=false;      // commissioner unlock flag (from Firebase)
 let kgView='vote';         // 'vote' | 'results'
 let kgUnsub=null;
 function kgRef(){ return db.collection('keepergame').doc(KG_ID); }
@@ -1662,7 +1665,7 @@ function gameEnter(){
  kgView='vote';
  if(cloudAvailable()&&fbInit()){
    if(kgUnsub)kgUnsub();
-   kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
+   kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgUnlocked=!!(d.exists&&d.data().unlocked); kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
  } else {
    try{kgVotes=JSON.parse(localStorage.getItem('poe-kg-votes')||'{}');}catch(e){kgVotes={};}
    kgLoadDraft();
@@ -1707,14 +1710,29 @@ function kgSubmit(){
 }
 function kgHasVoted(){ return !!kgVotes[kgMe]; }
 function kgCount(){ return Object.keys(kgVotes).length; }
-function kgResultsReady(){ return kgHasVoted() && kgCount()>=RESULTS_MIN; }
-function kgSetView(v){
- if(v==='results'){
-   if(!kgHasVoted()){alert('Submit your predictions first.');return;}
-   if(kgCount()<RESULTS_MIN){alert('Results unlock once '+RESULTS_MIN+' people have voted. So far: '+kgCount()+'.');return;}
- }
- kgView=v; renderGame();
+function kgTimeUp(){ return Date.now()>=KG_UNLOCK; }               // deadline reached
+function kgResultsReady(){ return kgUnlocked || kgTimeUp(); }     // commissioner unlock OR deadline
+async function kgSha(s){ const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+ return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function kgUnlock(){
+ if(kgResultsReady()){ alert('Results are already unlocked.'); return; }
+ const pw=prompt('Commissioner password to unlock results for everyone:'); if(pw===null)return;
+ const ok=(await kgSha(pw.trim().toLowerCase()))===KG_UNLOCK_HASH;
+ if(!ok){ alert('Wrong password — results stay locked.'); return; }
+ if(cloudAvailable()&&(fbReady||fbInit())){
+   kgRef().set({unlocked:true, updatedAt:Date.now()},{merge:true})
+     .then(()=>{ kgUnlocked=true; renderGame(); }).catch(e=>alert('Unlock failed: '+e.message));
+ } else { kgUnlocked=true; renderGame(); }
 }
+async function kgLock(){
+ const pw=prompt('Commissioner password to re-LOCK results:'); if(pw===null)return;
+ if((await kgSha(pw.trim().toLowerCase()))!==KG_UNLOCK_HASH){ alert('Wrong password.'); return; }
+ if(cloudAvailable()&&(fbReady||fbInit())){
+   kgRef().set({unlocked:false, updatedAt:Date.now()},{merge:true})
+     .then(()=>{ kgUnlocked=false; renderGame(); }).catch(e=>alert('Lock failed: '+e.message));
+ } else { kgUnlocked=false; renderGame(); }
+}
+function kgSetView(v){ kgView=v; renderGame(); }
 const KG_WARN=`<div class="kwarn"><span class="ic">⚠️</span><span>All keeper values shown are <b>purely speculative</b> estimates and are <b>not locked in</b> until our great and powerful commissioner <b>Brad</b> sends out the official values the weekend before the draft.</span></div>`;
 function renderGame(){
  const b=document.getElementById('gameBody');
@@ -1724,7 +1742,7 @@ function renderGame(){
    b.innerHTML=`<div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">🔮 Keeper Predictions</h2>
      <button class="btn small danger" onclick="kgReset()">↺ Reset all votes</button>
      <button class="btn small" onclick="gameExit()">← Home</button></div>
-     <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock at ${RESULTS_MIN}.</p>
+     <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock <b>${KG_UNLOCK_LABEL}</b>, or when the commissioner opens them.</p>
      ${KG_WARN}
      <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t);
        return `<button class="gme" style="${done?'border-color:var(--good);color:var(--good)':''}" onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${done?'✓ ':''}${t}${done?'<div class="gcap" style="color:var(--good)">voted</div>':''}</button>`;}).join('')}</div>`;
@@ -1739,13 +1757,16 @@ function renderGame(){
    <div style="display:flex;gap:8px;margin:6px 0 12px;align-items:center">
      <button class="btn small ${kgView==='vote'?'primary':''}" onclick="kgSetView('vote')">My predictions</button>
      <button class="btn small ${kgView==='results'?'primary':''}" onclick="kgSetView('results')">Results</button>
-     <span class="mut" style="font-size:12px">${voters}/12 voted${voters<RESULTS_MIN?' · '+(RESULTS_MIN-voters)+' more to unlock':''}</span>
+     <span class="mut" style="font-size:12px">${voters}/12 voted · ${kgResultsReady()?'<b style="color:var(--good)">results open</b>':'locked'}</span>
+     ${kgResultsReady()?`<button class="btn small" style="margin-left:auto" onclick="kgLock()">🔒 Re-lock</button>`:`<button class="btn small" style="margin-left:auto" onclick="kgUnlock()">🔓 Unlock (commish)</button>`}
    </div>${KG_WARN}`;
  if(kgView==='results'){
    if(kgResultsReady()){ b.innerHTML=h+renderKgResults(); }
    else { b.innerHTML=h+`<div class="gcard" style="text-align:center;padding:30px 14px"><div style="font-size:40px">🔒</div>
      <h3 style="margin:8px 0 4px">Results locked</h3>
-     <p class="mut">Predictions stay hidden until <b>${RESULTS_MIN}</b> people vote. So far <b>${voters}</b> ${voters===1?'has':'have'} voted${kgHasVoted()?', including you':''}.</p></div>`; }
+     <p class="mut">Predictions stay hidden until <b>${KG_UNLOCK_LABEL}</b> — or as soon as the commissioner confirms the official keepers are in and unlocks them, whichever comes first.</p>
+     <p class="mut" style="font-size:12.5px">So far <b>${voters}/12</b> submitted${kgHasVoted()?', including you':''}.</p>
+     <button class="btn small" style="margin-top:12px" onclick="kgUnlock()">🔓 Unlock now (commissioner)</button></div>`; }
    return;
  }
  // vote mode — your own team (read-only)
