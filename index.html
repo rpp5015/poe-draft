@@ -169,11 +169,20 @@ tr.gone .gname b{text-decoration:line-through}
 .gopt.sel .box{background:var(--acc);border-color:var(--acc);color:#04121d}
 .gopt .pn{flex:1;font-weight:600}
 .gopt .box{align-self:flex-start;margin-top:2px}
-.kval{font-weight:400;font-size:11px;color:var(--mut2);margin-top:2px}
-.kval b{color:var(--warn)}
-.kwarn{display:flex;gap:9px;align-items:flex-start;background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:10px;padding:10px 12px;margin:4px 0 12px;font-size:12.5px;line-height:1.45;color:var(--txt)}
+.kmeta{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin-top:5px}
+.kchip{display:inline-flex;flex-direction:column;justify-content:center;line-height:1.25;border:1px solid var(--line);border-radius:7px;padding:3px 9px;background:var(--panel2);font-size:12.5px;font-weight:600;color:var(--txt)}
+.kchip em{font-style:normal;font-size:8.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mut);margin-bottom:1px}
+.kchip.keep{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.kchip.keep em{color:var(--warn)}
+.kchip.save{border-color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
+.kchip.save em{color:var(--good)}
+.kchip.over{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad)}
+.kchip.over em{color:var(--bad)}
+.khist{font-size:11px;color:var(--mut2);margin-top:4px}
+.khist em{font-style:normal;font-weight:700;font-size:8.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--mut);margin-right:5px}
+.kwarn{display:flex;gap:9px;align-items:flex-start;background:color-mix(in srgb,var(--good) 14%,transparent);border:1px solid color-mix(in srgb,var(--good) 45%,transparent);border-radius:10px;padding:10px 12px;margin:4px 0 12px;font-size:12.5px;line-height:1.45;color:var(--txt)}
 .kwarn .ic{font-size:16px;line-height:1.2}
-.kwarn b{color:var(--warn)}
+.kwarn b{color:var(--good)}
 .gopt.ro{cursor:default}.gopt.ro:hover{background:none}
 .gbar{height:22px;border-radius:5px;background:var(--panel2);overflow:hidden;position:relative;margin-top:3px}
 .gbar>span{position:absolute;left:0;top:0;bottom:0;background:var(--acc);opacity:.85}
@@ -1505,139 +1514,153 @@ function freshState(){return {phase:'setup',teams:[...DEFAULT_TEAMS],picks:[],no
 // Candidates = each team's top-5 by price paid in 2025 (Aaron's roster is now Billy's).
 const KEEPER_CANDS={
  "Mitch": [
-  "TreVeyon Henderson",
-  "Malik Nabers",
-  "Brian Thomas Jr.",
-  "Ricky Pearsall",
-  "Dalton Kincaid",
   "Omarion Hampton",
   "Jaylen Warren",
-  "Deebo Samuel"
+  "Brian Thomas Jr.",
+  "Deebo Samuel Sr.",
+  "TreVeyon Henderson",
+  "Malik Nabers",
+  "Ricky Pearsall",
+  "Dalton Kincaid"
  ],
  "Glen": [
+  "Baker Mayfield",
+  "RJ Harvey",
+  "Javonte Williams",
   "Ja'Marr Chase",
   "A.J. Brown",
-  "RJ Harvey",
   "D'Andre Swift",
-  "Javonte Williams",
-  "Baker Mayfield",
   "Brandon Aubrey",
   "Hunter Henry",
   "Michael Pittman Jr."
  ],
  "Leven": [
-  "George Kittle",
-  "James Cook III",
   "Bucky Irving",
+  "James Cook III",
+  "Chris Olave",
+  "George Kittle",
   "Tony Pollard",
-  "Trey Benson",
-  "Chris Olave"
+  "Minnesota Vikings",
+  "Trey Benson"
  ],
  "AJ": [
-  "Justin Jefferson",
   "Jalen Hurts",
-  "Alvin Kamara",
   "Kyren Williams",
-  "Terry McLaurin",
+  "Justin Jefferson",
   "Zay Flowers",
-  "Cooper Kupp",
   "Dallas Goedert",
-  "Nick Chubb",
+  "Terry McLaurin",
+  "Alvin Kamara",
   "Rhamondre Stevenson",
-  "Rachaad White"
+  "Cooper Kupp",
+  "Rachaad White",
+  "Nick Chubb"
  ],
  "Brad": [
-  "Ashton Jeanty",
   "De'Von Achane",
-  "Drake London",
-  "Davante Adams",
   "Chase Brown",
+  "Drake London",
+  "Ashton Jeanty",
+  "Davante Adams",
   "Tyler Warren",
-  "Chuba Hubbard",
-  "Emeka Egbuka"
+  "Emeka Egbuka",
+  "Chuba Hubbard"
  ],
  "Rick": [
-  "Breece Hall",
   "Jahmyr Gibbs",
-  "Trey McBride",
+  "Breece Hall",
   "Nico Collins",
-  "Lamar Jackson",
-  "Isiah Pacheco",
   "Jameson Williams",
-  "DeVonta Smith"
+  "Trey McBride",
+  "DeVonta Smith",
+  "Isiah Pacheco",
+  "Lamar Jackson"
  ],
  "Peel": [
+  "Drake Maye",
   "Saquon Barkley",
   "Derrick Henry",
-  "Courtland Sutton",
   "Jaxon Smith-Njigba",
-  "Travis Kelce",
   "George Pickens",
-  "Drake Maye",
+  "Travis Kelce",
+  "Courtland Sutton",
   "Cam Skattebo",
   "Tyler Allgeier"
  ],
  "Josh": [
-  "CeeDee Lamb",
-  "Kenneth Walker III",
-  "Ladd McConkey",
-  "Garrett Wilson",
   "Bo Nix",
-  "Zach Charbonnet",
-  "Tucker Kraft",
+  "Kenneth Walker III",
   "Travis Etienne Jr.",
+  "CeeDee Lamb",
+  "Ladd McConkey",
+  "Houston Texans",
+  "Garrett Wilson",
+  "Tucker Kraft",
   "Tyjae Spears",
+  "Zach Charbonnet",
   "Bhayshul Tuten"
  ],
  "Billy": [
   "Jonathan Taylor",
-  "Puka Nacua",
-  "Brock Bowers",
-  "Tetairoa McMillan",
   "Tyrone Tracy Jr.",
+  "Puka Nacua",
+  "Tetairoa McMillan",
+  "Brock Bowers",
   "Caleb Williams",
   "Woody Marks"
  ],
  "TJ": [
   "Joe Burrow",
-  "Marvin Harrison Jr.",
-  "Xavier Worthy",
   "David Montgomery",
+  "Xavier Worthy",
+  "Jordan Addison",
+  "Kyle Pitts Sr.",
+  "Marvin Harrison Jr.",
+  "Denver Broncos",
   "Sam LaPorta",
   "Rome Odunze",
-  "Jordan Addison",
   "Quinshon Judkins",
-  "Kyle Pitts Sr.",
   "Jayden Higgins",
-  "Patrick Mahomes",
+  "Patrick Mahomes II",
   "DK Metcalf"
  ],
  "Erik": [
+  "Josh Allen",
   "Josh Jacobs",
   "Amon-Ra St. Brown",
-  "Josh Allen",
   "Tee Higgins",
-  "J.K. Dobbins",
+  "Cameron Dicker",
   "Jakobi Meyers",
-  "Cameron Dicker"
+  "J.K. Dobbins"
  ],
  "Koze": [
+  "Dak Prescott",
   "Bijan Robinson",
   "Christian McCaffrey",
-  "Aaron Jones Sr.",
-  "T.J. Hockenson",
-  "Rashee Rice",
   "Jaylen Waddle",
-  "Dak Prescott",
+  "Aaron Jones Sr.",
+  "Seattle Seahawks",
+  "Rashee Rice",
+  "T.J. Hockenson",
   "Khalil Shakir",
   "Rashid Shaheed"
  ]
 };
 const GAME_TEAMS=Object.keys(KEEPER_CANDS);
-const KEEPER_VALS={"Marvin Harrison Jr.":{"a":25,"k":25,"e":4,"f":13,"y":4},"David Montgomery":{"a":23,"k":23,"e":8,"f":15,"y":12},"Sam LaPorta":{"a":22,"k":22,"e":6,"f":11,"y":4},"DK Metcalf":{"a":20,"k":20,"e":4,"f":12,"y":2},"Joe Burrow":{"a":14,"k":14,"e":8,"f":9,"y":10},"Patrick Mahomes":{"a":11,"k":11,"e":4,"f":6,"y":2},"Xavier Worthy":{"a":10,"k":10,"e":1,"f":5,"y":1},"Rome Odunze":{"a":6,"k":8,"e":8,"f":19,"y":5},"Jordan Addison":{"a":4,"k":4,"e":2,"f":5,"y":1},"Quinshon Judkins":{"a":2,"k":8,"e":15,"f":19,"y":11},"Kyle Pitts Sr.":{"a":1,"k":4,"e":6,"f":15,"y":3},"Jayden Higgins":{"a":1,"k":1,"e":1,"f":1,"y":1},"Ja'Marr Chase":{"a":57,"k":58,"e":57,"f":56,"y":66},"A.J. Brown":{"a":37,"k":37,"e":28,"f":32,"y":29},"RJ Harvey":{"a":27,"k":27,"e":1,"f":10,"y":3},"D'Andre Swift":{"a":26,"k":26,"e":8,"f":22,"y":12},"Javonte Williams":{"a":9,"k":16,"e":22,"f":25,"y":22},"Baker Mayfield":{"a":7,"k":7,"e":1,"f":1,"y":1},"Brandon Aubrey":{"a":2,"k":3,"e":5,"f":1,"y":5},"Hunter Henry":{"a":1,"k":2,"e":1,"f":3,"y":1},"Michael Pittman Jr.":{"a":1,"k":2,"e":4,"f":7,"y":1},"George Kittle":{"a":35,"k":35,"e":3,"f":7,"y":3},"James Cook III":{"a":24,"k":34,"e":43,"f":36,"y":53},"Bucky Irving":{"a":18,"k":18,"e":14,"f":21,"y":12},"Tony Pollard":{"a":17,"k":17,"f":14,"e":5,"y":4},"Trey Benson":{"a":4,"k":4,"e":1,"f":1,"y":1},"Chris Olave":{"a":2,"k":14,"e":24,"f":31,"y":24},"Justin Jefferson":{"a":49,"k":49,"e":46,"f":36,"y":49},"Jalen Hurts":{"a":37,"k":37,"e":10,"f":12,"y":6},"Alvin Kamara":{"a":34,"k":34,"e":1,"f":4,"y":1},"Kyren Williams":{"a":26,"k":26,"e":20,"f":27,"y":25},"Terry McLaurin":{"a":15,"k":15,"e":12,"f":17,"y":10},"Zay Flowers":{"a":8,"k":14,"e":19,"f":28,"y":16},"Cooper Kupp":{"a":8,"k":8,"e":1,"f":1,"y":1},"Dallas Goedert":{"a":3,"k":4,"e":2,"f":11,"y":1},"Nick Chubb":{"a":3,"k":3,"e":1,"f":1,"y":1},"Rhamondre Stevenson":{"a":2,"k":4,"e":2,"f":12,"y":3},"Rachaad White":{"a":2,"k":3,"f":8,"e":1,"y":2},"Ashton Jeanty":{"a":60,"k":60,"e":38,"f":34,"y":48},"De'Von Achane":{"a":29,"k":36,"e":45,"f":38,"y":44},"Drake London":{"a":28,"k":34,"e":36,"f":42,"y":41},"Davante Adams":{"a":23,"k":23,"e":15,"f":22,"y":12},"Chase Brown":{"a":18,"k":28,"e":31,"f":34,"y":45},"Tyler Warren":{"a":15,"k":15,"e":13,"f":17,"y":13},"Chuba Hubbard":{"a":11,"k":11,"e":2,"f":12,"y":5},"Emeka Egbuka":{"a":8,"k":14,"e":18,"f":24,"y":14},"Breece Hall":{"a":47,"k":47,"e":22,"f":29,"y":20},"Jahmyr Gibbs":{"a":46,"k":56,"e":64,"f":61,"y":73},"Trey McBride":{"a":38,"k":38,"e":34,"f":33,"y":32},"Nico Collins":{"a":35,"k":35,"e":27,"f":30,"y":36},"Lamar Jackson":{"a":33,"k":33,"e":15,"f":14,"y":18},"Isiah Pacheco":{"a":22,"k":22,"e":1,"f":4,"y":1},"Jameson Williams":{"a":17,"k":17,"e":10,"f":21,"y":7},"DeVonta Smith":{"a":14,"k":18,"e":19,"f":24,"y":24},"Saquon Barkley":{"a":70,"k":70,"e":36,"f":33,"y":47},"Derrick Henry":{"a":64,"k":64,"e":33,"f":39,"y":37},"Courtland Sutton":{"a":16,"k":16,"e":5,"f":13,"y":2},"Jaxon Smith-Njigba":{"a":13,"k":34,"e":54,"f":54,"y":60},"Travis Kelce":{"a":10,"k":10,"e":2,"f":10,"y":2},"George Pickens":{"a":9,"k":20,"e":26,"f":31,"y":32},"Drake Maye":{"a":4,"k":8,"e":11,"f":15,"y":11},"Cam Skattebo":{"a":3,"k":12,"e":18,"f":27,"y":17},"Tyler Allgeier":{"a":3,"k":3,"e":1,"f":2,"y":1},"CeeDee Lamb":{"a":45,"k":45,"e":47,"f":36,"y":53},"Kenneth Walker III":{"a":33,"k":34,"e":30,"f":31,"y":40},"Ladd McConkey":{"a":31,"k":31,"e":14,"f":19,"y":14},"Garrett Wilson":{"a":22,"k":22,"e":23,"f":25,"y":14},"Bo Nix":{"a":9,"k":9,"e":4,"f":5,"y":1},"Zach Charbonnet":{"a":6,"k":6,"e":1,"f":4,"y":2},"Tucker Kraft":{"a":5,"k":6,"e":3,"f":10,"y":6},"Travis Etienne Jr.":{"a":5,"k":12,"e":16,"f":23,"y":18},"Tyjae Spears":{"a":4,"k":4,"e":1,"f":4,"y":1},"Bhayshul Tuten":{"a":2,"k":7,"e":8,"f":18,"y":9},"Jonathan Taylor":{"a":52,"k":52,"e":50,"f":47,"y":58},"Puka Nacua":{"a":42,"k":51,"e":58,"f":59,"y":63},"Brock Bowers":{"a":22,"k":28,"e":30,"f":31,"y":37},"Tetairoa McMillan":{"a":14,"k":17,"e":19,"f":23,"y":18},"Tyrone Tracy Jr.":{"a":9,"k":9,"e":1,"f":4,"y":1},"Caleb Williams":{"a":3,"k":4,"e":4,"f":7,"y":3},"Woody Marks":{"a":2,"k":2,"e":1,"f":4,"y":1},"Omarion Hampton":{"a":36,"k":36,"e":34,"f":32,"y":44},"TreVeyon Henderson":{"a":35,"k":35,"e":8,"f":15,"y":9},"Malik Nabers":{"a":34,"k":34,"e":22,"f":26,"y":25},"Brian Thomas Jr.":{"a":22,"k":22,"e":2,"f":8,"y":3},"Jaylen Warren":{"a":9,"k":9,"e":3,"f":13,"y":4},"Ricky Pearsall":{"a":5,"k":5,"e":1,"f":1,"y":1},"Dalton Kincaid":{"a":4,"k":4,"e":1,"f":5,"y":1},"Deebo Samuel":{"a":3,"k":3,"e":1,"f":6,"y":1},"Josh Jacobs":{"a":62,"k":62,"e":27,"f":31,"y":26},"Amon-Ra St. Brown":{"a":43,"k":48,"e":51,"f":51,"y":56},"Josh Allen":{"a":38,"k":38,"e":29,"f":31,"y":32},"Tee Higgins":{"a":20,"k":20,"e":12,"f":22,"y":20},"J.K. Dobbins":{"a":7,"k":7,"e":2,"f":11,"y":2},"Jakobi Meyers":{"a":4,"k":4,"e":2,"f":6,"y":1},"Cameron Dicker":{"a":1,"k":2,"e":2,"f":1,"y":2},"Bijan Robinson":{"a":73,"k":73,"e":62,"f":60,"y":72},"Christian McCaffrey":{"a":66,"k":66,"e":52,"f":49,"y":61},"Aaron Jones Sr.":{"a":19,"k":19,"e":1,"f":8,"y":2},"T.J. Hockenson":{"a":12,"k":12,"e":1,"f":1,"y":1},"Rashee Rice":{"a":9,"k":20,"e":32,"f":36,"y":24},"Jaylen Waddle":{"a":5,"k":10,"e":11,"f":16,"y":14},"Dak Prescott":{"a":3,"k":4,"e":4,"f":7,"y":3},"Khalil Shakir":{"a":2,"k":2,"e":1,"f":2,"y":1},"Rashid Shaheed":{"a":1,"k":2,"e":1,"f":3,"y":1}};
+const KEEPER_VALS={"Omarion Hampton":{"a":36,"k":36,"e":33,"y":44,"f":30,"p":36,"h":"Trade (via Peel, via TJ)"},"Jaylen Warren":{"a":9,"k":9,"e":3,"y":4,"f":17,"p":8,"h":"Trade (via Peel, via Mitch, via Peel)"},"Brian Thomas Jr.":{"a":22,"k":22,"e":3,"y":3,"f":6,"p":4,"h":"Drafted 2024 (Mitch), Keeper 2025 (Mitch)"},"Deebo Samuel Sr.":{"a":3,"k":3,"e":1,"y":1,"f":4,"p":2,"h":"Trade (via Peel)"},"TreVeyon Henderson":{"a":35,"k":35,"e":8,"y":9,"f":18,"p":12},"Malik Nabers":{"a":34,"k":34,"e":23,"y":25,"f":24,"p":24,"h":"Drafted 2024 (Mitch), Keeper 2025 (Mitch)"},"Ricky Pearsall":{"a":5,"k":5,"e":0,"y":1,"f":0,"p":1},"Dalton Kincaid":{"a":4,"k":4,"e":1,"y":1,"f":6,"p":3},"Baker Mayfield":{"a":7,"k":7,"e":1,"y":1,"f":2,"p":1},"RJ Harvey":{"a":27,"k":27,"e":2,"y":3,"f":13,"p":6},"Javonte Williams":{"a":9,"k":17,"e":23,"y":22,"f":27,"p":24},"Ja'Marr Chase":{"a":57,"k":59,"e":57,"y":65,"f":58,"p":60,"h":"Drafted 2021 (Glen), Keeper 2022-2025 (Glen)"},"A.J. Brown":{"a":37,"k":37,"e":28,"y":30,"f":30,"p":29},"D'Andre Swift":{"a":26,"k":26,"e":8,"y":12,"f":25,"p":15},"Brandon Aubrey":{"a":2,"k":3,"e":5,"y":5,"f":1,"p":4,"h":"Drafted 2024 (Glen), Keeper 2025 (Glen) - Yes, he actually did it."},"Hunter Henry":{"a":1,"k":2,"e":1,"y":1,"f":3,"p":2},"Michael Pittman Jr.":{"a":1,"k":3,"e":4,"y":1,"f":6,"p":4},"Bucky Irving":{"a":18,"k":18,"e":15,"y":12,"f":24,"p":17,"h":"Drafted 2024 (Leven), Keeper 2025 (Leven)"},"James Cook III":{"a":24,"k":34,"e":44,"y":53,"f":36,"p":44,"h":"Drafted 2023 (Leven), Keeper 2024-2025 (Leven)"},"Chris Olave":{"a":2,"k":14,"e":24,"y":24,"f":29,"p":26},"George Kittle":{"a":35,"k":35,"e":3,"y":3,"f":9,"p":5},"Tony Pollard":{"a":17,"k":17,"e":5,"y":4,"f":17,"p":9},"Minnesota Vikings":{"a":2,"k":2,"e":0,"y":1,"f":1,"p":1},"Trey Benson":{"a":4,"k":4,"e":0,"y":0,"f":0,"p":1,"h":"Trade (via Rick)"},"Jalen Hurts":{"a":37,"k":37,"e":10,"y":6,"f":12,"p":10},"Kyren Williams":{"a":26,"k":26,"e":20,"y":25,"f":29,"p":25,"h":"Drafted 2023 (AJ), Keeper 2024-2025 (AJ)"},"Justin Jefferson":{"a":49,"k":49,"e":46,"y":48,"f":35,"p":43},"Zay Flowers":{"a":8,"k":14,"e":19,"y":17,"f":25,"p":20},"Dallas Goedert":{"a":3,"k":4,"e":2,"y":1,"f":11,"p":5},"Terry McLaurin":{"a":15,"k":15,"e":12,"y":10,"f":14,"p":12,"h":"Drafted 2024 (Koze), Keeper 2025 (AJ)"},"Alvin Kamara":{"a":34,"k":34,"e":1,"y":1,"f":6,"p":3},"Rhamondre Stevenson":{"a":2,"k":5,"e":2,"y":3,"f":14,"p":7},"Cooper Kupp":{"a":8,"k":8,"e":0,"y":1,"f":0,"p":1},"Rachaad White":{"a":2,"k":4,"e":1,"y":2,"f":12,"p":5},"Nick Chubb":{"a":3,"k":3,"e":0,"y":0,"f":0,"p":1},"De'Von Achane":{"a":29,"k":36,"e":45,"y":44,"f":38,"p":42,"h":"Drafted 2023 (Brad), Keeper 2024-2025 (Brad)"},"Chase Brown":{"a":18,"k":28,"e":32,"y":45,"f":34,"p":37,"h":"Drafted 2024 (Brad), Keeper 2025 (Brad)"},"Drake London":{"a":28,"k":34,"e":37,"y":40,"f":42,"p":40,"h":"Trade (via Josh) · Drafted 2023 (TJ), Keeper 2024 (Josh)"},"Ashton Jeanty":{"a":60,"k":60,"e":38,"y":48,"f":35,"p":40},"Davante Adams":{"a":23,"k":23,"e":15,"y":12,"f":19,"p":15},"Tyler Warren":{"a":15,"k":15,"e":13,"y":13,"f":15,"p":13},"Emeka Egbuka":{"a":8,"k":13,"e":18,"y":14,"f":21,"p":18},"Chuba Hubbard":{"a":11,"k":11,"e":2,"y":5,"f":14,"p":7,"h":"Trade (via Josh) · Drafted 2024 (Rick), Keeper 2025 (Josh)"},"Jahmyr Gibbs":{"a":46,"k":55,"e":64,"y":74,"f":56,"p":64,"h":"Drafted 2023 (Rick), Keeper 2024-2025 (Rick)"},"Breece Hall":{"a":47,"k":47,"e":24,"y":21,"f":30,"p":25,"h":"Trade (via TJ) · Drafted 2022 (TJ), Keeper 2023-2025 (TJ)"},"Nico Collins":{"a":35,"k":35,"e":28,"y":36,"f":28,"p":31,"h":"Drafted 2024 (Rick), Keeper 2025 (Rick)"},"Jameson Williams":{"a":17,"k":17,"e":10,"y":7,"f":18,"p":12},"Trey McBride":{"a":38,"k":38,"e":34,"y":31,"f":29,"p":32},"DeVonta Smith":{"a":14,"k":18,"e":20,"y":25,"f":21,"p":22},"Isiah Pacheco":{"a":22,"k":22,"e":1,"y":1,"f":5,"p":2,"h":"Trade (via Josh)"},"Lamar Jackson":{"a":33,"k":33,"e":16,"y":17,"f":13,"p":15,"h":"Trade (via Leven)"},"Drake Maye":{"a":4,"k":8,"e":12,"y":11,"f":12,"p":12,"h":"Trade (via Mitch)"},"Saquon Barkley":{"a":70,"k":70,"e":38,"y":47,"f":34,"p":40,"h":"Drafted 2024 (Peel), Keeper 2025 (Peel)"},"Derrick Henry":{"a":64,"k":64,"e":34,"y":38,"f":39,"p":37,"h":"Trade (via Mitch)"},"Jaxon Smith-Njigba":{"a":13,"k":35,"e":54,"y":60,"f":55,"p":56,"h":"Drafted 2024 (Peel), Keeper 2025 (Peel)"},"George Pickens":{"a":9,"k":19,"e":26,"y":32,"f":29,"p":29},"Travis Kelce":{"a":10,"k":10,"e":2,"y":2,"f":10,"p":5},"Courtland Sutton":{"a":16,"k":16,"e":5,"y":2,"f":10,"p":6},"Cam Skattebo":{"a":3,"k":12,"e":18,"y":17,"f":28,"p":21},"Tyler Allgeier":{"a":3,"k":3,"e":0,"y":1,"f":4,"p":2},"Bo Nix":{"a":9,"k":9,"e":4,"y":1,"f":5,"p":3},"Kenneth Walker III":{"a":33,"k":34,"e":31,"y":41,"f":31,"p":34},"Travis Etienne Jr.":{"a":5,"k":13,"e":16,"y":17,"f":25,"p":20,"h":"Trade (via Brad)"},"CeeDee Lamb":{"a":45,"k":45,"e":47,"y":53,"f":35,"p":45},"Ladd McConkey":{"a":31,"k":31,"e":15,"y":14,"f":16,"p":15,"h":"Trade (via Brad)"},"Houston Texans":{"a":2,"k":3,"e":4,"y":4,"f":2,"p":3},"Garrett Wilson":{"a":22,"k":22,"e":23,"y":14,"f":22,"p":20},"Tucker Kraft":{"a":5,"k":6,"e":3,"y":6,"f":10,"p":6},"Tyjae Spears":{"a":4,"k":4,"e":0,"y":1,"f":6,"p":2},"Zach Charbonnet":{"a":6,"k":6,"e":1,"y":2,"f":6,"p":3,"h":"Trade (via Rick)"},"Bhayshul Tuten":{"a":2,"k":8,"e":8,"y":9,"f":21,"p":13,"h":"Trade (via Brad)"},"Jonathan Taylor":{"a":52,"k":52,"e":51,"y":58,"f":45,"p":51},"Tyrone Tracy Jr.":{"a":9,"k":9,"e":0,"y":1,"f":5,"p":2},"Puka Nacua":{"a":42,"k":51,"e":57,"y":63,"f":61,"p":60},"Tetairoa McMillan":{"a":14,"k":17,"e":19,"y":18,"f":21,"p":19},"Brock Bowers":{"a":22,"k":27,"e":30,"y":36,"f":27,"p":31,"h":"Drafted 2024 (Aaron), Keeper 2025 (Aaron)"},"Caleb Williams":{"a":3,"k":4,"e":4,"y":4,"f":7,"p":5},"Woody Marks":{"a":2,"k":3,"e":1,"y":1,"f":6,"p":3,"h":"Draft (via Brad)"},"Joe Burrow":{"a":14,"k":14,"e":9,"y":10,"f":8,"p":9,"h":"Drafted 2024 (TJ), Keeper 2025 (TJ)"},"David Montgomery":{"a":23,"k":23,"e":8,"y":12,"f":18,"p":13},"Xavier Worthy":{"a":10,"k":10,"e":1,"y":1,"f":3,"p":2},"Jordan Addison":{"a":4,"k":4,"e":2,"y":1,"f":3,"p":2},"Kyle Pitts Sr.":{"a":1,"k":5,"e":6,"y":3,"f":14,"p":8},"Marvin Harrison Jr.":{"a":25,"k":25,"e":4,"y":4,"f":10,"p":6},"Denver Broncos":{"a":3,"k":3,"e":3,"y":2,"f":2,"p":3},"Sam LaPorta":{"a":22,"k":22,"e":6,"y":5,"f":11,"p":7},"Rome Odunze":{"a":6,"k":8,"e":8,"y":5,"f":16,"p":10},"Quinshon Judkins":{"a":2,"k":10,"e":16,"y":12,"f":23,"p":17},"Jayden Higgins":{"a":1,"k":1,"e":1,"y":1,"f":0,"p":1},"Patrick Mahomes II":{"a":11,"k":11,"e":4,"y":2,"f":6,"p":4,"h":"Trade (via Rick)"},"DK Metcalf":{"a":20,"k":20,"e":5,"y":2,"f":9,"p":5,"h":"Trade (via Peel)"},"Josh Allen":{"a":38,"k":38,"e":29,"y":32,"f":26,"p":29},"Josh Jacobs":{"a":62,"k":62,"e":26,"y":25,"f":31,"p":27},"Amon-Ra St. Brown":{"a":43,"k":48,"e":52,"y":56,"f":52,"p":53},"Tee Higgins":{"a":20,"k":20,"e":12,"y":20,"f":18,"p":17,"h":"Drafted 2024 (Erik), Keeper 2025 (Erik)"},"Cameron Dicker":{"a":1,"k":2,"e":2,"y":2,"f":1,"p":2},"Jakobi Meyers":{"a":4,"k":4,"e":2,"y":1,"f":4,"p":2},"J.K. Dobbins":{"a":7,"k":7,"e":2,"y":2,"f":14,"p":6},"Dak Prescott":{"a":3,"k":4,"e":5,"y":3,"f":7,"p":5},"Bijan Robinson":{"a":73,"k":73,"e":62,"y":72,"f":55,"p":63},"Christian McCaffrey":{"a":66,"k":66,"e":52,"y":61,"f":46,"p":53},"Jaylen Waddle":{"a":5,"k":9,"e":12,"y":14,"f":13,"p":13},"Aaron Jones Sr.":{"a":19,"k":19,"e":2,"y":2,"f":11,"p":5},"Seattle Seahawks":{"a":1,"k":2,"e":2,"y":2,"f":1,"p":2},"Rashee Rice":{"a":9,"k":20,"e":33,"y":24,"f":35,"p":31},"T.J. Hockenson":{"a":12,"k":12,"e":1,"y":1,"f":1,"p":1},"Khalil Shakir":{"a":2,"k":2,"e":1,"y":1,"f":1,"p":1,"h":"Drafted 2024 (AJ), Keeper 2025 (Koze)"},"Rashid Shaheed":{"a":1,"k":1,"e":0,"y":1,"f":2,"p":1}};
 function kgValLine(p){const v=KEEPER_VALS[p]; if(!v)return '';
- const parts=["'25 $"+v.a]; if(v.e!=null)parts.push('ESPN $'+v.e); if(v.y!=null)parts.push('Yahoo $'+v.y); if(v.f!=null)parts.push('FP $'+v.f);
- return '<div class="kval">'+parts.join(' · ')+' &nbsp;<b>keep ~$'+v.k+'</b></div>';}
+ let chips=['<span class="kchip keep"><em>Keep cost</em>$'+v.k+'</span>'];
+ if(v.p!=null){const sv=v.p-v.k;
+   chips.push('<span class="kchip"><em>Proj. draft</em>$'+v.p+'</span>');
+   chips.push( sv>0 ? '<span class="kchip save"><em>Savings</em>▼ $'+sv+'</span>'
+      : sv<0 ? '<span class="kchip over"><em>Savings</em>▲ –$'+(-sv)+'</span>'
+      :        '<span class="kchip"><em>Savings</em>$0</span>' ); }
+ const src=[]; if(v.e!=null)src.push('ESPN '+v.e); if(v.y!=null)src.push('Yahoo '+v.y); if(v.f!=null)src.push('FP '+v.f);
+ if(src.length) chips.push('<span class="kchip"><em>Site est.</em>'+src.join(' · ')+'</span>');
+ chips.push('<span class="kchip"><em>2025 paid</em>$'+v.a+'</span>');
+ let out='<div class="kmeta">'+chips.join('')+'</div>';
+ if(v.h) out+='<div class="khist"><em>History</em> '+v.h+'</div>';
+ return out;}
 const KG_ID='poe-2026';
 const KG_UNLOCK=new Date(2026,7,20,0,0,0).getTime();  // Thu Aug 20 2026, 12:00 AM
 const KG_UNLOCK_LABEL='Thursday, August 20 at 12:00 AM';
@@ -1743,7 +1766,7 @@ async function kgLock(){
  } else { kgUnlocked=false; renderGame(); }
 }
 function kgSetView(v){ kgView=v; renderGame(); }
-const KG_WARN=`<div class="kwarn"><span class="ic">⚠️</span><span>All keeper values shown are <b>purely speculative</b> estimates and are <b>not locked in</b> until our great and powerful commissioner <b>Brad</b> sends out the official values the weekend before the draft.</span></div>`;
+const KG_WARN=`<div class="kwarn"><span class="ic">✅</span><span>All keeper numbers shown are the <b>official confirmed 2026 keeper costs</b> from the commissioner's draft board.</span></div>`;
 function renderGame(){
  const b=document.getElementById('gameBody');
  const voted=new Set(Object.keys(kgVotes));
