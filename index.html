@@ -1988,12 +1988,14 @@ function renderMetrics(){
  h+='<h3 style="font-size:15px;margin:22px 0 9px">⭐ Position top-5 keepers</h3><div class="mpanel">';
  h+=K.filter(k=>k.pr<=5).sort((a,b)=>a.ovr-b.ovr).map(k=>`<span class="mpill">${tag(k.pos)} <b>${k.pos}${k.pr}</b> ${k.name} <span class="mut">${k.mgr} · ${money(k.price)}</span></span>`).join('')||'<span class="mut">none</span>';
  h+='</div>';
+ h+=`<h3 style="font-size:15px;margin:22px 0 9px">🔁 Multi-year keepers <span class="mut" style="font-weight:400;font-size:12px">${repeat.length} kept 2+ straight years</span></h3><div class="mpanel">`;
+ h+=[...K].filter(k=>k.kept2025).sort((a,b)=>b.years-a.years).map(k=>`<span class="mpill">${tag(k.pos)} ${k.name} <span class="mut">${k.mgr} · <b style="color:var(--acc)">${k.years} yrs</b></span></span>`).join('')||'<span class="mut">none</span>';
+ h+='</div>';
  h+='<h3 style="font-size:15px;margin:22px 0 9px">🎲 Other notes</h3><div class="mcards">';
  h+=card('Avg positional rank','#'+avgPr.toFixed(1),'across all keepers');
  h+=card('Traded post-keeper',''+traded.length,traded.map(k=>short(k.name)).join(', ')||'none','warn');
  const longest=[...K].sort((a,b)=>b.years-a.years)[0];
  h+=card('Longest keeper streak',longest.years+' yrs',`${longest.name} (${longest.mgr}) — kept since ${2026-longest.years+1}`,'acc');
- h+=card('Kept 2+ years',''+repeat.length,(repeat.slice(0,4).map(k=>short(k.name)).join(', '))+(repeat.length>4?` +${repeat.length-4} more`:''));
  const bigJump=[...K].sort((a,b)=>(b.price-b.a)-(a.price-a.a))[0];
  h+=card('Biggest cost jump','+'+money(bigJump.price-bigJump.a),`${bigJump.name}: ${money(bigJump.a)} → ${money(bigJump.price)}`,'bad');
  const twoRB=team.filter(x=>x.players.every(p=>p.pos==='RB'));
