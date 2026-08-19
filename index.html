@@ -180,6 +180,9 @@ tr.gone .gname b{text-decoration:line-through}
 .kchip.over em{color:var(--bad)}
 .khist{font-size:11px;color:var(--mut2);margin-top:4px}
 .khist em{font-style:normal;font-weight:700;font-size:8.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--mut);margin-right:5px}
+.kactual{font-size:12.5px;color:var(--txt);margin:0 0 8px;padding:5px 9px;border-radius:7px;background:color-mix(in srgb,var(--good) 12%,transparent);border:1px solid color-mix(in srgb,var(--good) 35%,transparent)}
+.kactual em{font-style:normal;font-weight:700;font-size:8.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--good);margin-right:6px}
+.kactual b{color:var(--good)}
 .kwarn{display:flex;gap:9px;align-items:flex-start;background:color-mix(in srgb,var(--good) 14%,transparent);border:1px solid color-mix(in srgb,var(--good) 45%,transparent);border-radius:10px;padding:10px 12px;margin:4px 0 12px;font-size:12.5px;line-height:1.45;color:var(--txt)}
 .kwarn .ic{font-size:16px;line-height:1.2}
 .kwarn b{color:var(--good)}
@@ -258,7 +261,7 @@ body.done .nomctl{display:none !important}
    </div>
    <div style="margin-top:22px;border-top:1px solid var(--line);padding-top:16px">
     <div class="tag" style="margin-top:0">Just for fun</div>
-    <button class="role" onclick="gameEnter()"><b>🔮 Keeper Predictions</b><span>Guess who each manager will keep. See your own options, predict everyone else's, then watch the votes roll in.</span></button>
+    <button class="role" onclick="gameEnter()"><b>🔮 Keeper Results</b><span>Keepers are final. See each manager's predictions graded against the real keepers, and who was most accurate.</span></button>
    </div>
   </div>
  </section>
@@ -1689,8 +1692,8 @@ function gameEnter(){
  document.getElementById('vHome').style.display='none';
  document.getElementById('appHeader').style.display='none';
  document.getElementById('vGame').style.display='';
- try{kgMe=localStorage.getItem('poe-kg-me')||null;}catch(e){}
- kgView='vote';
+ kgMe=null;              // review mode: start at manager picker
+ kgView='person';
  if(cloudAvailable()&&fbInit()){
    if(kgUnsub)kgUnsub();
    kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgOwners=(d.exists&&d.data().owners)||{}; kgUnlocked=!!(d.exists&&d.data().unlocked); kgVotingClosed=!!(d.exists&&d.data().votingClosed); kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
@@ -1701,13 +1704,8 @@ function gameEnter(){
  renderGame();
 }
 function gameExit(){ if(kgUnsub){kgUnsub();kgUnsub=null;} document.getElementById('vGame').style.display='none'; showHome(); }
-function kgPickMe(name){
- const owner=kgOwners[name];
- if(owner && owner!==kgDeviceId()){
-   alert(name+' has already submitted their keeper picks on another device.\n\nTo protect everyone’s votes, you can only vote and view your own. If this is really you (new phone/browser), the commissioner can reset the game.');
-   return;
- }
- kgMe=name; try{localStorage.setItem('poe-kg-me',name);}catch(e){} kgLoadDraft(); kgView='vote'; renderGame(); }
+function kgPickMe(name){ kgMe=name; kgView='person'; renderGame(); }   // view this manager's submitted predictions
+function kgBackToPicker(){ kgMe=null; kgView='person'; renderGame(); }
 function kgChangeMe(){ kgMe=null; renderGame(); }
 function kgReset(){
  if(!confirm('Reset the keeper game for EVERYONE?\nThis permanently deletes all submitted votes so the league can start fresh.'))return;
@@ -1787,61 +1785,70 @@ async function kgReopenVoting(){
 }
 function kgSetView(v){ kgView=v; renderGame(); }
 const KG_WARN=`<div class="kwarn"><span class="ic">✅</span><span>All keeper numbers shown are the <b>official confirmed 2026 keeper costs</b> from the commissioner's draft board.</span></div>`;
+// ===== Final keepers (official) + accuracy grading =====
+const ACTUAL_KEEPERS={
+ Brad:[['Chase Brown',28],['Brock Bowers',27]],
+ TJ:[['Quinshon Judkins',10],['Kyle Pitts Sr.',5]],
+ Koze:[['Rashee Rice',20],['Jaylen Waddle',9]],
+ Billy:[['Puka Nacua',51],["De'Von Achane",36]],
+ Glen:[["Ja'Marr Chase",59],['Javonte Williams',17]],
+ Leven:[['James Cook III',34],['Chris Olave',14]],
+ Erik:[['Josh Allen',38],['Tee Higgins',20]],
+ Josh:[['Travis Etienne Jr.',13],['Bhayshul Tuten',8]],
+ Peel:[['Jaxon Smith-Njigba',35],['Cam Skattebo',12]],
+ AJ:[['Kyren Williams',26],['Rhamondre Stevenson',5]],
+ Rick:[['Jahmyr Gibbs',55],['DeVonta Smith',18]],
+ Mitch:[['Omarion Hampton',36],['Malik Nabers',34]]
+};
+const KG_TRADED=new Set(['brockbowers','devonachane']);   // traded post-keeper — count if predicted kept by anyone
+function kgPN(s){ return (s||'').toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b/g,'').replace(/[^a-z]/g,''); }
+function kgActualNorm(team){ return (ACTUAL_KEEPERS[team]||[]).map(x=>kgPN(x[0])); }
+function kgPickCorrect(team,player){ const n=kgPN(player); return kgActualNorm(team).includes(n) || KG_TRADED.has(n); }
+function kgScore(voter){ if(!kgVotes[voter])return null; const v=kgNorm(kgVotes[voter]); let correct=0;
+ GAME_TEAMS.forEach(t=>{ if(t===voter)return; (v.keepers[t]||[]).forEach(p=>{ if(kgPickCorrect(t,p))correct++; }); });
+ correct=Math.min(correct,22); return {correct, pct:Math.round(100*correct/22)}; }
+function renderPerson(name){
+ const vote=kgVotes[name];
+ let h=`<div class="gcard mine" style="text-align:center"><h4 style="justify-content:center">${name}'s predictions</h4>`;
+ if(!vote){ return h+`<p class="mut">${name} didn't submit any predictions.</p></div>`; }
+ const sc=kgScore(name);
+ h+=`<div style="font-size:26px;font-weight:800;color:var(--good);line-height:1.1">${sc.correct}<span style="font-size:14px;color:var(--mut);font-weight:600"> / 22 keepers correct</span></div>
+   <div class="mut" style="font-size:13px">${sc.pct}% accuracy</div></div>`;
+ const v=kgNorm(vote);
+ GAME_TEAMS.filter(t=>t!==name).forEach(t=>{
+   const picks=v.keepers[t]||[]; const actual=ACTUAL_KEEPERS[t]||[]; const actNorm=actual.map(x=>kgPN(x[0]));
+   const pred = picks.length ? picks.map(p=>{ const ok=kgPickCorrect(t,p); const traded=ok&&!actNorm.includes(kgPN(p));
+       return `<div class="gres"><span>${ok?'✅':'❌'} ${p}${traded?' <span class="gcap" style="color:var(--good)">traded · counts</span>':''}</span></div>`; }).join('')
+     : `<div class="gres"><span class="mut">— no prediction —</span></div>`;
+   h+=`<div class="gcard"><h4>${t}</h4>
+     <div class="kactual"><em>Actual</em> ${actual.map(x=>x[0]+' <b>$'+x[1]+'</b>').join(' · ')}</div>${pred}</div>`;
+ });
+ h+=`<div class="gcard"><h4>Their calls</h4>
+   <div class="gres"><span>🏆 Best keepers</span><span>${v.best||'—'}</span></div>
+   <div class="gres"><span>🗑️ Worst keepers</span><span>${v.worst||'—'}</span></div></div>`;
+ return h;
+}
 function renderGame(){
  const b=document.getElementById('gameBody');
  const voted=new Set(Object.keys(kgVotes));
- // 1) identity picker (with done marks)
- if(!kgMe){
-   b.innerHTML=`<div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">🔮 Keeper Predictions</h2>
-     <button class="btn small danger" onclick="kgReset()">↺ Reset all votes</button>
+ // manager picker
+ if(!kgMe && kgView!=='overall'){
+   b.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="flex:1;margin:0">🔮 Keeper Results</h2>
+     <button class="btn small primary" onclick="kgSetView('overall')">📊 Overall &amp; accuracy</button>
      <button class="btn small" onclick="gameExit()">← Home</button></div>
-     <p class="mut" style="font-size:13px">Who are you? You'll see your own keeper options, then predict everyone else's. <b>${voted.size}/12</b> have voted — results unlock <b>${KG_UNLOCK_LABEL}</b>, or when the commissioner opens them.</p>
+     <p class="mut" style="font-size:13px">Keepers are final. Pick a manager to see the predictions they submitted, graded against the real keepers.</p>
      ${KG_WARN}
-     <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t); const owner=kgOwners[t]; const mine=owner===kgDeviceId(); const lockedOther=owner&&!mine;
-       const style=lockedOther?'opacity:.5;cursor:not-allowed':(done?'border-color:var(--good);color:var(--good)':'');
-       const cap=lockedOther?'<div class="gcap">🔒 taken</div>':(mine?'<div class="gcap" style="color:var(--good)">voted · you</div>':(done?'<div class="gcap" style="color:var(--good)">voted · tap to claim</div>':''));
-       return `<button class="gme" style="${style}" ${lockedOther?'disabled':''} onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${lockedOther?'🔒 ':(done?'✓ ':'')}${t}${cap}</button>`;}).join('')}</div>`;
+     <div class="gmegrid">${GAME_TEAMS.map(t=>{const done=voted.has(t); const sc=done?kgScore(t):null;
+       const cap=done?`<div class="gcap" style="color:var(--good)">${sc.correct}/22 · ${sc.pct}%</div>`:'<div class="gcap">no picks</div>';
+       return `<button class="gme" style="${done?'':'opacity:.55'}" onclick="kgPickMe('${t.replace(/'/g,"\\'")}')">${t}${cap}</button>`;}).join('')}</div>`;
    return;
  }
- const voters=voted.size;
  let h=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:5">
-   <h2 style="flex:1;margin:0;font-size:20px">🔮 Keeper Predictions</h2>
-   <span class="mut" style="font-size:12.5px">You are <b style="color:var(--acc)">${kgMe}</b>${kgHasVoted()?' <span style="color:var(--good)">✓ voted</span>':''}</span>
-   <button class="btn small" onclick="kgChangeMe()">Change</button>
-   <button class="btn small" onclick="gameExit()">← Home</button></div>
-   <div style="display:flex;gap:8px;margin:6px 0 12px;align-items:center">
-     <button class="btn small ${kgView==='vote'?'primary':''}" onclick="kgSetView('vote')">My predictions</button>
-     <button class="btn small ${kgView==='results'?'primary':''}" onclick="kgSetView('results')">Results</button>
-     <span class="mut" style="font-size:12px">${voters}/12 voted · ${kgResultsReady()?'<b style="color:var(--good)">results open</b>':'locked'}${kgVotingClosed?' · <b style="color:var(--bad)">voting closed</b>':''}</span>
-     ${kgResultsReady()?`<button class="btn small" style="margin-left:auto" onclick="kgLock()">🔓 Re-lock results</button>`:`<button class="btn small" style="margin-left:auto" onclick="kgUnlock()">🔓 Unlock (commish)</button>`}
-     ${kgVotingClosed?`<button class="btn small" onclick="kgReopenVoting()">Re-open voting</button>`:`<button class="btn small danger" onclick="kgCloseVoting()">🔒 Close voting</button>`}
-   </div>${kgVotingClosed?'<div class="kwarn" style="background:color-mix(in srgb,var(--bad) 14%,transparent);border-color:color-mix(in srgb,var(--bad) 45%,transparent)"><span class="ic">🔒</span><span>Voting is <b style="color:var(--bad)">closed</b> — keeper selections are final and predictions can no longer be changed or submitted.</span></div>':KG_WARN}`;
- if(kgView==='results'){
-   if(kgResultsReady()){ b.innerHTML=h+renderKgResults(); }
-   else { b.innerHTML=h+`<div class="gcard" style="text-align:center;padding:30px 14px"><div style="font-size:40px">🔒</div>
-     <h3 style="margin:8px 0 4px">Results locked</h3>
-     <p class="mut">Predictions stay hidden until <b>${KG_UNLOCK_LABEL}</b> — or as soon as the commissioner confirms the official keepers are in and unlocks them, whichever comes first.</p>
-     <p class="mut" style="font-size:12.5px">So far <b>${voters}/12</b> submitted${kgHasVoted()?', including you':''}.</p>
-     <button class="btn small" style="margin-top:12px" onclick="kgUnlock()">🔓 Unlock now (commissioner)</button></div>`; }
-   return;
- }
- // vote mode — your own team (read-only)
- h+=`<div class="gcard mine"><h4>🔒 ${kgMe} <span class="gcap">your team — others predict yours</span></h4>
-   ${KEEPER_CANDS[kgMe].map(p=>`<div class="gopt ro"><span class="box"></span><span class="pn">${p}${kgValLine(p)}</span></div>`).join('')}</div>`;
- // other teams
- GAME_TEAMS.filter(t=>t!==kgMe).forEach(t=>{
-   const sel=kgDraft.keepers[t]||[];
-   h+=`<div class="gcard"><h4>${t} <span class="gcap">${sel.length} of 2 · ${sel.length===0?'keeps no one':(sel.length===1?'one keeper':'two keepers')}</span></h4>
-     ${KEEPER_CANDS[t].map(p=>{const on=sel.includes(p);
-       return `<div class="gopt ${on?'sel':''}" onclick="kgToggle('${t.replace(/'/g,"\\'")}','${p.replace(/'/g,"\\'")}')"><span class="box">${on?'✓':''}</span><span class="pn">${p}${kgValLine(p)}</span></div>`;}).join('')}</div>`;
- });
- // two follow-up questions
- h+=kgBWSelector('best','🏆 Best keepers','Which team do you think has the best keeper options?');
- h+=kgBWSelector('worst','🗑️ Worst keepers','Which team do you think has the worst keeper options?');
- h+= kgVotingClosed
-   ? `<div class="gcard" style="text-align:center;margin:6px 0 20px;padding:14px"><b style="color:var(--bad)">🔒 Voting is closed</b><div class="mut" style="font-size:12.5px;margin-top:3px">Predictions are final.${kgHasVoted()?' Your picks are locked in.':' No submission on record for you.'}</div></div>`
-   : `<button class="btn primary" style="width:100%;padding:12px;font-size:15px;margin:6px 0 20px" onclick="kgSubmit()">${kgHasVoted()?'Update my predictions':'Submit predictions'}</button>`;
- b.innerHTML=h;
+   <h2 style="flex:1;margin:0;font-size:20px">🔮 Keeper Results</h2>
+   <button class="btn small ${kgView==='overall'?'primary':''}" onclick="kgSetView('overall')">Overall</button>
+   <button class="btn small" onclick="kgBackToPicker()">All managers</button>
+   <button class="btn small" onclick="gameExit()">← Home</button></div>`;
+ b.innerHTML = h + (kgView==='overall' ? renderKgResults() : renderPerson(kgMe));
 }
 function kgBWSelector(kind,title,sub){
  return `<div class="gcard"><h4>${title} <span class="gcap">${kgDraft[kind]?'you picked '+kgDraft[kind]:'pick one'}</span></h4>
@@ -1852,8 +1859,15 @@ function kgBWSelector(kind,title,sub){
 function renderKgResults(){
  const voterList=Object.keys(kgVotes);
  const n=voterList.length;
- let h=`<p class="mut" style="font-size:13px">${n} people have voted. Tallies show how many predicted each player as a keeper.</p>`;
- // best / worst tallies first
+ let h=`<p class="mut" style="font-size:13px">${n} managers submitted predictions, graded against the final keepers.</p>`;
+ // accuracy leaderboard
+ const board=voterList.map(v=>({v,...kgScore(v)})).sort((a,b)=>b.correct-a.correct||a.v.localeCompare(b.v));
+ h+=`<div class="gcard"><h4>🎯 Accuracy leaderboard <span class="gcap">correct of 22</span></h4>`;
+ h+= board.length ? board.map((r,i)=>{const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.';
+     return `<div><div class="gres"><span>${medal} ${r.v}</span><span>${r.correct}/22 · ${r.pct}%</span></div><div class="gbar"><span style="width:${r.pct}%"></span><em>${r.pct}%</em></div></div>`;}).join('')
+   : '<p class="mut">No predictions submitted.</p>';
+ h+=`</div>`;
+ // best / worst tallies
  const bw=(kind)=>{ const t={}; GAME_TEAMS.forEach(x=>t[x]=0); voterList.forEach(v=>{const c=kgNorm(kgVotes[v])[kind]; if(c&&t[c]!=null)t[c]++;});
    return Object.entries(t).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]); };
  const bwCard=(kind,title)=>{ const rows=bw(kind); const tot=rows.reduce((s,r)=>s+r[1],0)||1;
@@ -1861,17 +1875,18 @@ function renderKgResults(){
      return `<div><div class="gres"><span>${tm}</span><span>${c} ${c===1?'vote':'votes'}</span></div><div class="gbar"><span style="width:${pct}%"></span><em>${pct}%</em></div></div>`;}).join(''):'<p class="mut">No votes yet.</p>'}</div>`; };
  h+=bwCard('best','🏆 Best keepers');
  h+=bwCard('worst','🗑️ Worst keepers');
+ // per-team: actual keepers + how often each candidate was predicted
  GAME_TEAMS.forEach(t=>{
-   const tally={}; KEEPER_CANDS[t].forEach(p=>tally[p]=0); const cnt=[0,0,0];
-   voterList.forEach(v=>{ if(v===t)return; const picks=(kgNorm(kgVotes[v]).keepers[t])||[]; cnt[Math.min(picks.length,2)]++; picks.forEach(p=>{ if(tally[p]!=null)tally[p]++; }); });
-   const total=cnt[0]+cnt[1]+cnt[2];
-   const rows=KEEPER_CANDS[t].map(p=>{const c=tally[p]; const pct=total?Math.round(100*c/total):0;
-     return `<div><div class="gres"><span>${p}</span><span>${c} ${c===1?'vote':'votes'}</span></div>
-       <div class="gbar"><span style="width:${pct}%"></span><em>${pct}%</em></div></div>`;}).join('');
-   h+=`<div class="gcard ${t===kgMe?'mine':''}"><h4>${t} ${t===kgMe?'<span class="gcap">your team</span>':''}</h4>
-     ${rows}
-     <div class="gres" style="margin-top:8px;color:var(--txt)"><span>Predicted total kept:</span>
-       <span>0 → ${cnt[0]} · 1 → ${cnt[1]} · 2 → ${cnt[2]}</span></div></div>`;
+   const actual=ACTUAL_KEEPERS[t]||[]; const actNorm=actual.map(x=>kgPN(x[0]));
+   const tally={}; KEEPER_CANDS[t].forEach(p=>tally[p]=0);
+   voterList.forEach(v=>{ if(v===t)return; (kgNorm(kgVotes[v]).keepers[t]||[]).forEach(p=>{ if(tally[p]!=null)tally[p]++; }); });
+   const denom=Math.max(1,n-(voterList.includes(t)?1:0));
+   const rows=KEEPER_CANDS[t].map(p=>{const c=tally[p]; const pct=Math.round(100*c/denom); const hit=actNorm.includes(kgPN(p));
+     return `<div><div class="gres"><span>${hit?'✅ ':''}${p}</span><span>${c} ${c===1?'vote':'votes'}</span></div>
+       <div class="gbar"><span style="width:${pct}%;${hit?'background:var(--good)':''}"></span><em>${pct}%</em></div></div>`;}).join('');
+   h+=`<div class="gcard"><h4>${t}</h4>
+     <div class="kactual"><em>Actual</em> ${actual.map(x=>x[0]+' <b>$'+x[1]+'</b>').join(' · ')}</div>
+     ${rows}</div>`;
  });
  return h;
 }
