@@ -1670,6 +1670,7 @@ let kgDraft={keepers:{},best:null,worst:null}; // this device's in-progress vote
 let kgVotes={};            // all voters' submitted votes {voter:{keepers,best,worst}}
 let kgOwners={};           // {voter: deviceId} — which device owns each submitted vote
 let kgUnlocked=false;      // commissioner unlock flag (from Firebase)
+let kgVotingClosed=false;  // commissioner: voting locked, no more edits/submits
 let kgView='vote';         // 'vote' | 'results'
 let kgUnsub=null;
 function kgDeviceId(){ let d=null; try{d=localStorage.getItem('poe-kg-device');}catch(e){}
@@ -1692,7 +1693,7 @@ function gameEnter(){
  kgView='vote';
  if(cloudAvailable()&&fbInit()){
    if(kgUnsub)kgUnsub();
-   kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgOwners=(d.exists&&d.data().owners)||{}; kgUnlocked=!!(d.exists&&d.data().unlocked); kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
+   kgUnsub=kgRef().onSnapshot(d=>{ kgVotes=(d.exists&&d.data().votes)||{}; kgOwners=(d.exists&&d.data().owners)||{}; kgUnlocked=!!(d.exists&&d.data().unlocked); kgVotingClosed=!!(d.exists&&d.data().votingClosed); kgLoadDraft(); renderGame(); }, e=>console.error('kg sub',e));
  } else {
    try{kgVotes=JSON.parse(localStorage.getItem('poe-kg-votes')||'{}');}catch(e){kgVotes={};}
    kgLoadDraft();
@@ -1719,6 +1720,7 @@ function kgReset(){
  }
 }
 function kgToggle(team,player){
+ if(kgVotingClosed){ alert('Voting is closed — predictions are final and can no longer be changed.'); return; }
  if(team===kgMe)return;
  const cur=kgDraft.keepers[team]||[];
  const i=cur.indexOf(player);
@@ -1726,8 +1728,9 @@ function kgToggle(team,player){
  else { if(cur.length>=2)cur.shift(); cur.push(player); }   // max 2, drop oldest
  kgDraft.keepers[team]=cur; renderGame();
 }
-function kgSetBW(kind,team){ kgDraft[kind]=(kgDraft[kind]===team?null:team); renderGame(); }
+function kgSetBW(kind,team){ if(kgVotingClosed){ alert('Voting is closed — predictions are final.'); return; } kgDraft[kind]=(kgDraft[kind]===team?null:team); renderGame(); }
 function kgSubmit(){
+ if(kgVotingClosed){ alert('Voting is closed — predictions are final and can no longer be submitted or changed.'); return; }
  if(!kgDraft.best||!kgDraft.worst){ alert('Also pick the team you think has the BEST and the WORST keepers before submitting.'); return; }
  GAME_TEAMS.forEach(t=>{ if(t!==kgMe && !kgDraft.keepers[t]) kgDraft.keepers[t]=[]; });
  if(cloudAvailable()&&(fbReady||fbInit())){
@@ -1765,6 +1768,23 @@ async function kgLock(){
      .then(()=>{ kgUnlocked=false; renderGame(); }).catch(e=>alert('Lock failed: '+e.message));
  } else { kgUnlocked=false; renderGame(); }
 }
+async function kgCloseVoting(){
+ const pw=prompt('Commissioner password to CLOSE voting (locks all predictions — no more edits):'); if(pw===null)return;
+ if((await kgSha(pw.trim().toLowerCase()))!==KG_UNLOCK_HASH){ alert('Wrong password — voting stays open.'); return; }
+ if(!confirm('Close voting for EVERYONE? Predictions become final and no one can change or submit after this.'))return;
+ if(cloudAvailable()&&(fbReady||fbInit())){
+   kgRef().set({votingClosed:true, updatedAt:Date.now()},{merge:true})
+     .then(()=>{ kgVotingClosed=true; renderGame(); }).catch(e=>alert('Failed: '+e.message));
+ } else { kgVotingClosed=true; renderGame(); }
+}
+async function kgReopenVoting(){
+ const pw=prompt('Commissioner password to RE-OPEN voting:'); if(pw===null)return;
+ if((await kgSha(pw.trim().toLowerCase()))!==KG_UNLOCK_HASH){ alert('Wrong password.'); return; }
+ if(cloudAvailable()&&(fbReady||fbInit())){
+   kgRef().set({votingClosed:false, updatedAt:Date.now()},{merge:true})
+     .then(()=>{ kgVotingClosed=false; renderGame(); }).catch(e=>alert('Failed: '+e.message));
+ } else { kgVotingClosed=false; renderGame(); }
+}
 function kgSetView(v){ kgView=v; renderGame(); }
 const KG_WARN=`<div class="kwarn"><span class="ic">✅</span><span>All keeper numbers shown are the <b>official confirmed 2026 keeper costs</b> from the commissioner's draft board.</span></div>`;
 function renderGame(){
@@ -1792,9 +1812,10 @@ function renderGame(){
    <div style="display:flex;gap:8px;margin:6px 0 12px;align-items:center">
      <button class="btn small ${kgView==='vote'?'primary':''}" onclick="kgSetView('vote')">My predictions</button>
      <button class="btn small ${kgView==='results'?'primary':''}" onclick="kgSetView('results')">Results</button>
-     <span class="mut" style="font-size:12px">${voters}/12 voted · ${kgResultsReady()?'<b style="color:var(--good)">results open</b>':'locked'}</span>
-     ${kgResultsReady()?`<button class="btn small" style="margin-left:auto" onclick="kgLock()">🔒 Re-lock</button>`:`<button class="btn small" style="margin-left:auto" onclick="kgUnlock()">🔓 Unlock (commish)</button>`}
-   </div>${KG_WARN}`;
+     <span class="mut" style="font-size:12px">${voters}/12 voted · ${kgResultsReady()?'<b style="color:var(--good)">results open</b>':'locked'}${kgVotingClosed?' · <b style="color:var(--bad)">voting closed</b>':''}</span>
+     ${kgResultsReady()?`<button class="btn small" style="margin-left:auto" onclick="kgLock()">🔓 Re-lock results</button>`:`<button class="btn small" style="margin-left:auto" onclick="kgUnlock()">🔓 Unlock (commish)</button>`}
+     ${kgVotingClosed?`<button class="btn small" onclick="kgReopenVoting()">Re-open voting</button>`:`<button class="btn small danger" onclick="kgCloseVoting()">🔒 Close voting</button>`}
+   </div>${kgVotingClosed?'<div class="kwarn" style="background:color-mix(in srgb,var(--bad) 14%,transparent);border-color:color-mix(in srgb,var(--bad) 45%,transparent)"><span class="ic">🔒</span><span>Voting is <b style="color:var(--bad)">closed</b> — keeper selections are final and predictions can no longer be changed or submitted.</span></div>':KG_WARN}`;
  if(kgView==='results'){
    if(kgResultsReady()){ b.innerHTML=h+renderKgResults(); }
    else { b.innerHTML=h+`<div class="gcard" style="text-align:center;padding:30px 14px"><div style="font-size:40px">🔒</div>
@@ -1817,7 +1838,9 @@ function renderGame(){
  // two follow-up questions
  h+=kgBWSelector('best','🏆 Best keepers','Which team do you think has the best keeper options?');
  h+=kgBWSelector('worst','🗑️ Worst keepers','Which team do you think has the worst keeper options?');
- h+=`<button class="btn primary" style="width:100%;padding:12px;font-size:15px;margin:6px 0 20px" onclick="kgSubmit()">${kgHasVoted()?'Update my predictions':'Submit predictions'}</button>`;
+ h+= kgVotingClosed
+   ? `<div class="gcard" style="text-align:center;margin:6px 0 20px;padding:14px"><b style="color:var(--bad)">🔒 Voting is closed</b><div class="mut" style="font-size:12.5px;margin-top:3px">Predictions are final.${kgHasVoted()?' Your picks are locked in.':' No submission on record for you.'}</div></div>`
+   : `<button class="btn primary" style="width:100%;padding:12px;font-size:15px;margin:6px 0 20px" onclick="kgSubmit()">${kgHasVoted()?'Update my predictions':'Submit predictions'}</button>`;
  b.innerHTML=h;
 }
 function kgBWSelector(kind,title,sub){
