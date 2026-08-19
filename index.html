@@ -1930,9 +1930,11 @@ function metricsData(){
  const K=[];
  Object.keys(ACTUAL_KEEPERS).forEach(mgr=>{ ACTUAL_KEEPERS[mgr].forEach(pair=>{
    const name=pair[0], price=pair[1], n=kgPN(name), pl=byName[n]||{}, kv=kvn[n]||{};
+   const h=kv.h||''; const km=h.match(/Keeper\s*(\d{4})/);   // first keeper year (handles "Keeper 2024-2025")
+   const kept2025=/Keeper[^,]*2025/.test(h);                 // was also a keeper in 2025
    K.push({mgr,name,price,pos:pl.p||'?',pr:pl.pr||99,fp:pl.v||0,ovr:pl.ovr||999,
      proj:(kv.p!=null?kv.p:price), a:(kv.a!=null?kv.a:price),
-     kept2025:/Keeper 2025/.test(kv.h||''), tradedNow:KG_TRADED.has(n)});
+     kept2025, years:(km?2026-(+km[1])+1:1), tradedNow:KG_TRADED.has(n)});
  }); });
  return K;
 }
@@ -1989,7 +1991,9 @@ function renderMetrics(){
  h+='<h3 style="font-size:15px;margin:22px 0 9px">🎲 Other notes</h3><div class="mcards">';
  h+=card('Avg positional rank','#'+avgPr.toFixed(1),'across all keepers');
  h+=card('Traded post-keeper',''+traded.length,traded.map(k=>short(k.name)).join(', ')||'none','warn');
- h+=card('Kept 2+ years',''+repeat.length,repeat.map(k=>short(k.name)).join(', '));
+ const longest=[...K].sort((a,b)=>b.years-a.years)[0];
+ h+=card('Longest keeper streak',longest.years+' yrs',`${longest.name} (${longest.mgr}) — kept since ${2026-longest.years+1}`,'acc');
+ h+=card('Kept 2+ years',''+repeat.length,(repeat.slice(0,4).map(k=>short(k.name)).join(', '))+(repeat.length>4?` +${repeat.length-4} more`:''));
  const bigJump=[...K].sort((a,b)=>(b.price-b.a)-(a.price-a.a))[0];
  h+=card('Biggest cost jump','+'+money(bigJump.price-bigJump.a),`${bigJump.name}: ${money(bigJump.a)} → ${money(bigJump.price)}`,'bad');
  const twoRB=team.filter(x=>x.players.every(p=>p.pos==='RB'));
