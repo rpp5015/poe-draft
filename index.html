@@ -183,6 +183,8 @@ tr.gone .gname b{text-decoration:line-through}
 .kactual{font-size:12.5px;color:var(--txt);margin:0 0 8px;padding:5px 9px;border-radius:7px;background:color-mix(in srgb,var(--good) 12%,transparent);border:1px solid color-mix(in srgb,var(--good) 35%,transparent)}
 .kactual em{font-style:normal;font-weight:700;font-size:8.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--good);margin-right:6px}
 .kactual b{color:var(--good)}
+.postag{display:inline-block;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;color:#12202e;vertical-align:middle}
+.movesel{font-size:11.5px;padding:3px 5px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 /* keeper metrics view */
 .mcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .mcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -640,29 +642,61 @@ function teamPicks(t){return S.picks.filter(p=>p.team===t);}
 function spent(t){return teamPicks(t).reduce((s,p)=>s+p.price,0);}
 function budget(t){return BUDGET-spent(t);}
 function maxBid(t){return budget(t)-(NSLOTS-teamPicks(t).length)+1;} // = bud -15 + filled
+function slotEligible(pos,token){
+ if(token==='BN')return true;
+ if(token==='FLX')return FLEX_OK.includes(pos);
+ if(token==='RB'||token==='RB1'||token==='RB2')return pos==='RB';
+ if(token==='WR'||token==='WR1'||token==='WR2')return pos==='WR';
+ return token===pos; // QB/TE/DST/K
+}
 function assignSlots(t){
- // returns 16 slots {slot, pick|null}. Best player at each position (by position rank,
- // then FP value) starts; extra RB/WR/TE compete for FLEX; everyone else goes to bench.
+ // returns 16 slots {slot, pick|null}. Manual lineup overrides (S.lineup[team][playerName]=slot)
+ // are honored first; the rest auto-fill: best player by position rank then FP value, extra
+ // RB/WR/TE compete for FLEX, everyone else to bench.
  const slots=SLOTS.map(s=>({slot:s,pick:null}));
  const items=teamPicks(t).map(pk=>({pk,pl:playerByName(pk.n)||{}}));
  const rank=x=>(x.pl.pr!=null?x.pl.pr:9999);           // lower position rank = better
  const better=(m,n)=>(rank(m)-rank(n))||((n.pl.v||0)-(m.pl.v||0));
- const byPos={}; items.forEach(x=>{(byPos[x.pl.p||'BN']=byPos[x.pl.p||'BN']||[]).push(x);});
- Object.values(byPos).forEach(a=>a.sort(better));
  const used=new Set();
+ const ov=(S.lineup&&S.lineup[t])||{};
+ const rb=[],wr=[]; slots.forEach((s,i)=>{ if(s.slot==='RB')rb.push(i); if(s.slot==='WR')wr.push(i); });
+ const targetIdx=(token)=>{
+   if(token==='RB1')return rb[0]; if(token==='RB2')return rb[1];
+   if(token==='WR1')return wr[0]; if(token==='WR2')return wr[1];
+   if(token==='RB')return slots.findIndex(s=>!s.pick&&s.slot==='RB');
+   if(token==='WR')return slots.findIndex(s=>!s.pick&&s.slot==='WR');
+   if(token==='BN')return slots.findIndex(s=>!s.pick&&s.slot==='BN');
+   if(['QB','TE','DST','K','FLX'].includes(token))return slots.findIndex(s=>s.slot===token);
+   return -1;
+ };
+ // 1) manual overrides first (draft order); only into a legal, still-empty slot
+ items.forEach(x=>{ const o=ov[x.pk.n]; if(o && !used.has(x.pk) && slotEligible(x.pl.p,o)){ const idx=targetIdx(o); if(idx>=0 && !slots[idx].pick){slots[idx].pick=x.pk;used.add(x.pk);} } });
+ // 2) auto-fill the rest
+ const byPos={}; items.filter(x=>!used.has(x.pk)).forEach(x=>{(byPos[x.pl.p||'BN']=byPos[x.pl.p||'BN']||[]).push(x);});
+ Object.values(byPos).forEach(a=>a.sort(better));
  const place=(slotName,pos)=>{ const idx=slots.findIndex(s=>!s.pick&&s.slot===slotName); if(idx<0)return;
    const cand=(byPos[pos]||[]).find(x=>!used.has(x.pk)); if(cand){slots[idx].pick=cand.pk;used.add(cand.pk);} };
  place('QB','QB'); place('RB','RB'); place('RB','RB'); place('WR','WR'); place('WR','WR');
  place('TE','TE'); place('DST','DST'); place('K','K');
- // FLEX = best remaining RB/WR/TE
  const fi=slots.findIndex(s=>!s.pick&&s.slot==='FLX');
  if(fi>=0){ const c=FLEX_OK.flatMap(p=>byPos[p]||[]).filter(x=>!used.has(x.pk)).sort(better)[0];
    if(c){slots[fi].pick=c.pk;used.add(c.pk);} }
- // bench (and any overflow) in draft order
  items.filter(x=>!used.has(x.pk)).forEach(x=>{ let idx=slots.findIndex(s=>!s.pick&&s.slot==='BN');
    if(idx<0)idx=slots.findIndex(s=>!s.pick); if(idx>=0){slots[idx].pick=x.pk;used.add(x.pk);} });
  return slots;
 }
+function tokenOccupant(t,token){ // who currently sits in a specific RB1/RB2/WR1/WR2 slot
+ const slots=assignSlots(t); const rb=[],wr=[]; slots.forEach((s,i)=>{ if(s.slot==='RB')rb.push(i); if(s.slot==='WR')wr.push(i); });
+ const idx = token==='RB1'?rb[0]:token==='RB2'?rb[1]:token==='WR1'?wr[0]:token==='WR2'?wr[1]:-1;
+ return (idx>=0&&slots[idx].pick)?slots[idx].pick.n:null;
+}
+function setLineup(t,name,slot){ if(RO)return; if(!S.lineup)S.lineup={}; if(!S.lineup[t])S.lineup[t]={};
+ const SIB={RB1:'RB2',RB2:'RB1',WR1:'WR2',WR2:'WR1'};
+ if(SIB[slot]){ const occ=tokenOccupant(t,slot); if(occ && occ!==name) S.lineup[t][occ]=SIB[slot]; } // swap current starter to the other spot
+ if(slot==='AUTO') delete S.lineup[t][name]; else S.lineup[t][name]=slot;
+ if(S.lineup[t]&&!Object.keys(S.lineup[t]).length) delete S.lineup[t];
+ save(); showTeam(t); render(); }
+function resetLineup(t){ if(RO)return; if(S.lineup)delete S.lineup[t]; save(); showTeam(t); render(); }
 // Which positions a team may still draft so it can finish a legal roster.
 // Bench holds any position, so restriction only bites once bench is committed:
 //   slack = (picks left) − (empty mandatory starter slots).
@@ -690,7 +724,7 @@ function setMinBidRule(v){ if(RO)return; S.minBidRule=v; save(); render(); }
 // ============ CLOUD DATA LAYER (Firestore, per-pick documents) ============
 function draftRef(){ return db.collection('drafts').doc(DRAFT_ID); }
 function picksRef(){ return draftRef().collection('picks'); }
-function metaFromS(){ return {name:S.name||DRAFT_ID, teams:S.teams, colors:S.colors||{}, minBidRule:S.minBidRule!==false, phase:S.phase, nomIdx:S.nomIdx||0, nextSeq:S.nextSeq||0, custom:S.custom||[], updatedAt:Date.now()}; }
+function metaFromS(){ return {name:S.name||DRAFT_ID, teams:S.teams, colors:S.colors||{}, minBidRule:S.minBidRule!==false, phase:S.phase, nomIdx:S.nomIdx||0, nextSeq:S.nextSeq||0, custom:S.custom||[], lineup:S.lineup||{}, updatedAt:Date.now()}; }
 function cloudSaveMeta(){ if(!fbReady||MODE!=='operator')return; draftRef().set(metaFromS(),{merge:true}).catch(e=>console.error('meta save',e)); }
 function cloudCreate(){ // create meta doc if missing (operator)
  return draftRef().get().then(d=>{
@@ -720,7 +754,7 @@ function cloudSubscribe(){
    if(!d.exists){ if(MODE==='spectator'){document.getElementById('hdrStats').textContent='Waiting for operator to start…';} return; }
    const m=d.data();
    S.name=m.name; S.teams=m.teams||S.teams; S.colors=m.colors||{}; S.minBidRule=m.minBidRule!==false;
-   S.phase=m.phase||'setup'; S.nomIdx=m.nomIdx||0; S.nextSeq=m.nextSeq||0; S.custom=m.custom||[];
+   S.phase=m.phase||'setup'; S.nomIdx=m.nomIdx||0; S.nextSeq=m.nextSeq||0; S.custom=m.custom||[]; S.lineup=m.lineup||{};
    render();
  },e=>console.error('meta sub',e)));
  // picks collection
@@ -1168,16 +1202,33 @@ function renderBoard(){
  }
  b.innerHTML=h;
 }
+function moveSelect(t,pick,pl){
+ const pos=pl.p||''; const cur=(S.lineup&&S.lineup[t]&&S.lineup[t][pick.n])||'AUTO';
+ const opts=[['AUTO','Auto']];
+ if(pos==='RB') opts.push(['RB1','RB1'],['RB2','RB2'],['FLX','Flex']);
+ else if(pos==='WR') opts.push(['WR1','WR1'],['WR2','WR2'],['FLX','Flex']);
+ else if(pos==='TE') opts.push(['TE','Start TE'],['FLX','Flex']);
+ else if(pos) opts.push([pos,'Start '+pos]);   // QB / DST / K
+ opts.push(['BN','Bench']);
+ const esc=x=>x.replace(/'/g,"\\'");
+ return `<select class="movesel" onchange="setLineup('${esc(t)}','${esc(pick.n)}',this.value)">`+
+   opts.map(o=>`<option value="${o[0]}" ${cur===o[0]?'selected':''}>${o[1]}</option>`).join('')+`</select>`;
+}
 function showTeam(t){
  const ov=document.getElementById('teamOverlay');
  const slots=assignSlots(t);
+ const hasOv=S.lineup&&S.lineup[t]&&Object.keys(S.lineup[t]).length;
  document.getElementById('teamModal').innerHTML=`
   <h3>${t}</h3>
-  <div class="mut" style="font-size:13px;margin-bottom:10px">Spent $${spent(t)} · Budget $${budget(t)} · Max bid $${Math.max(maxBid(t),0)} · ${teamPicks(t).length}/16 filled</div>
-  <table><thead><tr><th>Roster Slot</th><th>Player</th><th class="num">Price</th><th class="num">Projected Value</th></tr></thead><tbody>
-  ${slots.map(s=>{const pl=s.pick?playerByName(s.pick.n):null;
-    return `<tr><td class="mut">${slotFull(s.slot)}</td><td>${s.pick?(s.pick.keeper?'🔒 ':'')+s.pick.n:'—'}</td><td class="num">${s.pick?'$'+s.pick.price:''}</td><td class="num">${pl?'$'+pl.v:''}</td></tr>`;}).join('')}
+  <div class="mut" style="font-size:13px;margin-bottom:10px">Spent $${spent(t)} · Budget $${budget(t)} · Max bid $${Math.max(maxBid(t),0)} · ${teamPicks(t).length}/16 filled${hasOv?' · <span class="acc" style="color:var(--acc)">custom lineup</span>':''}</div>
+  <table><thead><tr><th>Roster Slot</th><th>Player</th>${RO?'':'<th>Move to</th>'}<th class="num">Price</th><th class="num">Value</th></tr></thead><tbody>
+  ${slots.map(s=>{const pl=s.pick?playerByName(s.pick.n):null; const pos=pl?pl.p:'';
+    return `<tr><td class="mut">${slotFull(s.slot)}</td>
+      <td>${s.pick?(s.pick.keeper?'🔒 ':'')+s.pick.n:'—'}${pos?` <span class="postag" style="background:${POSCOL[pos]||'#556'}">${pos}</span>`:''}</td>
+      ${RO?'':`<td>${s.pick?moveSelect(t,s.pick,pl||{}):''}</td>`}
+      <td class="num">${s.pick?'$'+s.pick.price:''}</td><td class="num">${pl?'$'+pl.v:''}</td></tr>`;}).join('')}
   </tbody></table>
+  ${RO?'':`<div class="mut" style="font-size:11.5px;margin-top:8px">Move a player to any slot they're eligible for. Auto = best-fit lineup. ${hasOv?`<a href="#" onclick="resetLineup('${t.replace(/'/g,"\\'")}');return false" style="color:var(--acc)">Reset to auto</a>`:''}</div>`}
   <button class="btn" style="margin-top:12px;width:100%" onclick="document.getElementById('teamOverlay').classList.remove('show')">Close</button>`;
  ov.classList.add('show');
 }
@@ -1537,7 +1588,7 @@ function resetAll(){
  }
  localStorage.removeItem(LSKEY); S=freshState(); render();
 }
-function freshState(){return {phase:'setup',teams:[...DEFAULT_TEAMS],picks:[],nomIdx:0,minBidRule:true,colors:{},nextSeq:0,showDrafted:true,custom:[]};}
+function freshState(){return {phase:'setup',teams:[...DEFAULT_TEAMS],picks:[],nomIdx:0,minBidRule:true,colors:{},nextSeq:0,showDrafted:true,custom:[],lineup:{}};}
 
 // ============ KEEPER PREDICTION GAME ============
 // Candidates = each team's top-5 by price paid in 2025 (Aaron's roster is now Billy's).
