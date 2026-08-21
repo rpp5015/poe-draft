@@ -81,6 +81,17 @@ tr.gone td{opacity:.42}
 tr.gone .gname b{text-decoration:line-through}
 .poolwrap{max-height:calc(100vh - 235px);overflow-y:auto;border:1px solid var(--line);border-radius:8px}
 .ptag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;color:#04121d}
+@media(max-width:640px){
+ .poolbar{gap:6px}
+ .poolbar #search{flex:1 1 100% !important;min-width:0 !important;font-size:16px !important}
+ .posbtn{padding:6px 11px;font-size:13px}
+ #poolTable th,#poolTable td{padding:8px 6px;font-size:13.5px}
+ #poolTable th:nth-child(1),#poolTable td:nth-child(1),
+ #poolTable th:nth-child(5),#poolTable td:nth-child(5),
+ #poolTable th:nth-child(6),#poolTable td:nth-child(6){display:none}
+ #poolTable th.num,#poolTable td.num{white-space:nowrap}
+ .poolwrap{max-height:calc(100vh - 210px)}
+}
 /* ---- log ---- */
 .logwrap{max-height:420px;overflow-y:auto}
 .logrow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-bottom:1px solid var(--line);font-size:12.5px}
