@@ -285,8 +285,8 @@ body.done .nomctl{display:none !important}
    </div>
    <p class="mut" style="font-size:13px">Run a live auction on the big screen and share a read-only link so the league can follow along on their phones.</p>
    <div class="roles">
-    <button class="role" id="roleOperate" onclick="openNewDraft()"><b>▶ Create &amp; operate a new draft</b><span>Name a brand-new shared draft. You enter every pick; others follow along live.</span></button>
-    <button class="role" id="roleJoin" onclick="openDrafts()"><b>📋 Join an existing draft</b><span>Pick from all live/saved drafts and join to operate or watch (read-only).</span></button>
+    <button class="role" id="roleOperate" onclick="openNewDraft()"><b>🔨 Create &amp; auction a new draft</b><span>Name a brand-new shared draft. You're the Auctioneer — you enter every pick; others follow along live.</span></button>
+    <button class="role" id="roleJoin" onclick="openDrafts()"><b>📋 Join an existing draft</b><span>Pick from all live/saved drafts and join as Auctioneer or watch (read-only).</span></button>
     <button class="role" onclick="homeLocal()"><b>💻 Local only (offline)</b><span>Run entirely on this device, no internet or sharing. Autosaves in this browser.</span></button>
    </div>
    <div class="err" id="homeErr" style="margin-top:10px"></div>
@@ -487,14 +487,28 @@ body.done .nomctl{display:none !important}
 <div class="overlay" id="newDraftOverlay" onclick="if(event.target===this)closeNewDraft()">
  <div class="modal">
   <h3>New draft</h3>
-  <p class="mut" style="font-size:12.5px">Name your draft. You'll operate it and can share a read-only link with the league.</p>
+  <p class="mut" style="font-size:12.5px">Name your draft. You'll run it as the Auctioneer and can share a read-only link with the league.</p>
   <div class="mrow"><label style="width:88px">Draft name</label>
    <input id="newDraftName" style="flex:1" placeholder="e.g. POE 2026" autocomplete="off" onkeydown="if(event.key==='Enter')createNewDraft()">
   </div>
   <div class="err" id="newDraftErr"></div>
   <div style="display:flex;gap:10px;margin-top:8px">
-   <button class="btn primary" style="flex:1" onclick="createNewDraft()">Create &amp; operate</button>
+   <button class="btn primary" style="flex:1" onclick="createNewDraft()">Create &amp; auction</button>
    <button class="btn" onclick="closeNewDraft()">Cancel</button>
+  </div>
+ </div>
+</div>
+
+<!-- ============ AUCTIONEER CONFIRM (type SOLD) ============ -->
+<div class="overlay" id="soldOverlay" style="z-index:200" onclick="if(event.target===this)closeSold()">
+ <div class="modal" style="width:min(380px,94vw);text-align:center">
+  <h3>🔨 Become the Auctioneer</h3>
+  <p class="mut" style="font-size:12.5px">You'll run the auction and enter every pick for the league. Type <b style="color:var(--warn)">SOLD</b> to confirm.</p>
+  <input id="soldInput" placeholder="Type SOLD" autocomplete="off" style="width:100%;font-size:22px;font-weight:800;text-align:center;text-transform:uppercase;letter-spacing:2px" oninput="soldValidate()" onkeydown="if(event.key==='Enter')soldConfirm()">
+  <div class="err" id="soldErr"></div>
+  <div style="display:flex;gap:10px;margin-top:10px">
+   <button class="btn primary" id="soldGo" style="flex:1" onclick="soldConfirm()" disabled>Confirm</button>
+   <button class="btn" onclick="closeSold()">Cancel</button>
   </div>
  </div>
 </div>
@@ -528,7 +542,7 @@ body.done .nomctl{display:none !important}
    <button class="btn small" onclick="openDrafts()">↻ Refresh</button>
    <button class="btn small" onclick="document.getElementById('draftsOverlay').classList.remove('show')">Close</button>
   </div>
-  <p class="mut" style="font-size:12.5px;margin:6px 0 4px">Operate to run it, Watch for read-only, or Delete to remove it for everyone.</p>
+  <p class="mut" style="font-size:12.5px;margin:6px 0 4px">Auctioneer to run it, Watcher for read-only, or Delete to remove it for everyone.</p>
   <div id="draftsList" style="max-height:60vh;overflow-y:auto;margin-top:4px"></div>
  </div>
 </div>
@@ -771,7 +785,7 @@ function cloudSubscribe(){
  cloudUnsub();
  // meta doc
  unsub.push(draftRef().onSnapshot(d=>{
-   if(!d.exists){ if(MODE==='spectator'){document.getElementById('hdrStats').textContent='Waiting for operator to start…';} return; }
+   if(!d.exists){ if(MODE==='spectator'){document.getElementById('hdrStats').textContent='Waiting for the auctioneer to start…';} return; }
    const m=d.data();
    S.name=m.name; S.teams=m.teams||S.teams; S.colors=m.colors||{}; S.minBidRule=m.minBidRule!==false;
    S.phase=m.phase||'setup'; S.nomIdx=m.nomIdx||0; S.nextSeq=m.nextSeq||0; S.custom=m.custom||[]; S.lineup=m.lineup||{};
@@ -812,7 +826,7 @@ function updateCloudBadge(){
  const b=document.getElementById('cloudBadge'), t=document.getElementById('cloudBadgeTxt');
  if(MODE==='local'){ b.style.display='none'; return; }
  b.style.display=''; b.className='cloudbadge live';
- t.textContent=(MODE==='operator'?'Operating · ':'Watching · ')+(S.name||DRAFT_ID);
+ t.textContent=(MODE==='operator'?'Auctioneer · ':'Watching · ')+(S.name||DRAFT_ID);
 }
 // new-draft modal (create & operate a brand-new draft only)
 function openNewDraft(){
@@ -822,10 +836,19 @@ function openNewDraft(){
  setTimeout(()=>document.getElementById('newDraftName').focus(),50);
 }
 function closeNewDraft(){ document.getElementById('newDraftOverlay').classList.remove('show'); }
+let soldCb=null;
+function askSold(cb){ soldCb=cb; const i=document.getElementById('soldInput'); i.value=''; document.getElementById('soldErr').textContent=''; document.getElementById('soldGo').disabled=true; document.getElementById('soldOverlay').classList.add('show'); setTimeout(()=>i.focus(),60); }
+function soldValidate(){ document.getElementById('soldGo').disabled = document.getElementById('soldInput').value.trim().toUpperCase()!=='SOLD'; }
+function closeSold(){ document.getElementById('soldOverlay').classList.remove('show'); soldCb=null; }
+function soldConfirm(){ if(document.getElementById('soldInput').value.trim().toUpperCase()!=='SOLD'){ document.getElementById('soldErr').textContent='Type SOLD to confirm.'; return; } const cb=soldCb; closeSold(); if(cb)cb(); }
 function createNewDraft(){
  const nm=document.getElementById('newDraftName').value.trim();
  const err=document.getElementById('newDraftErr'); err.textContent='';
  if(!nm){err.textContent='Enter a draft name.';return;}
+ askSold(()=>proceedCreate(nm));
+}
+function proceedCreate(nm){
+ const err=document.getElementById('newDraftErr'); err.textContent='';
  try{localStorage.setItem('poe-last-name',nm);}catch(e){}
  if(cloudAvailable() && fbInit()){
    const id=slug(nm);
@@ -899,7 +922,7 @@ function simulateDraft(){
  S.picks=picks; S.nextSeq=seq; save(); render();
 }
 function shareLink(){
- if(MODE==='local'){ alert('This is a local-only draft. Return to Home and choose "Create & operate" with cloud configured to share a live link.'); return; }
+ if(MODE==='local'){ alert('This is a local-only draft. Return to Home and choose "Create & auction" with cloud configured to share a live link.'); return; }
  const url=location.origin+location.pathname+'?draft='+encodeURIComponent(DRAFT_ID)+'&role=watch';
  navigator.clipboard&&navigator.clipboard.writeText(url);
  prompt('Read-only link copied — share with your league:', url);
@@ -923,8 +946,8 @@ function openDrafts(){
          <span class="pill" style="background:${live?'#143a27':'#3a3017'};color:${live?'var(--good)':'var(--warn)'};font-size:10px">${live?'live · pick '+(r.nom+1):'setup'}</span>
          <div class="mut" style="font-size:11px">${r.upd?new Date(r.upd).toLocaleString():''}</div>
        </div>
-       <button class="btn small" onclick="joinDraft('${r.id}','operate')">Operate</button>
-       <button class="btn small" onclick="joinDraft('${r.id}','watch')">Watch</button>
+       <button class="btn small" onclick="askSold(()=>joinDraft('${r.id}','operate'))">🔨 Auctioneer</button>
+       <button class="btn small" onclick="joinDraft('${r.id}','watch')">👀 Watcher</button>
        <button class="btn small danger" onclick="deleteDraft('${r.id}',&quot;${nm}&quot;)">Delete</button>
      </div>`;
    }).join('');
