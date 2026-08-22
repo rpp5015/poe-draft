@@ -81,6 +81,10 @@ tr.gone td{opacity:.42}
 tr.gone .gname b{text-decoration:line-through}
 .poolwrap{max-height:calc(100vh - 235px);overflow-y:auto;border:1px solid var(--line);border-radius:8px}
 .ptag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;color:#04121d}
+.cdbig{display:none;align-items:center;justify-content:center;font-size:66px;font-weight:900;color:var(--warn);text-align:center;margin:6px 0;line-height:1;letter-spacing:1px}
+.cdbig.sold{font-size:42px;color:var(--good)}
+@keyframes pkpulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 transparent}50%{transform:scale(1.04);box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 45%,transparent)}}
+.btn.pulse{animation:pkpulse .8s infinite}
 @media(max-width:640px){
  .poolbar{gap:6px}
  .poolbar #search{flex:1 1 100% !important;min-width:0 !important;font-size:16px !important}
@@ -419,6 +423,7 @@ body.done .nomctl{display:none !important}
     <button class="btn small" onclick="minimizePick()" title="Shrink to corner so the board is visible">▣ Minimize</button>
    </div>
    <div class="dl" id="pkDetails"></div>
+   <div id="pkWarn" style="display:none"></div>
    <div class="mrow"><label style="width:110px;font-size:14px">Winning bid</label>
     <input id="pkPrice" type="number" min="1" style="width:130px;font-size:24px;font-weight:800;text-align:center" oninput="pickValidate()">
     <span class="mut" style="font-size:12.5px" id="pkMinNote"></span>
@@ -427,8 +432,10 @@ body.done .nomctl{display:none !important}
     <div class="teamgrid" id="pkTeams"></div>
    </div>
    <div class="err" id="pkErr"></div>
-   <div style="display:flex;gap:10px;margin-top:8px">
-    <button class="btn primary" style="flex:1;padding:13px;font-size:16px" id="pkGo" onclick="confirmPick()">Sold!</button>
+   <div class="cdbig" id="cdBig"></div>
+   <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+    <button class="btn primary" style="flex:1 1 40%;min-width:120px;padding:13px;font-size:16px" id="pkGo" onclick="confirmPick()">Sold!</button>
+    <button class="btn" style="flex:1 1 40%;min-width:120px;padding:13px;font-size:15px;color:var(--warn);border-color:var(--warn)" id="pkCountdown" onclick="toggleCountdown()">⏱ Final countdown</button>
     <button class="btn" onclick="closePick()">Cancel</button>
    </div>
   </div>
@@ -560,6 +567,8 @@ const FLEX_OK=['RB','WR','TE'];
 const BUDGET=200, NTEAMS=12, NSLOTS=16;
 // position colors pulled from the league spreadsheet's conditional formatting
 const POSCOL={QB:'#0B5394',RB:'#C9DAF8',WR:'#EA9999',TE:'#F9CB9C',DST:'#FFF2CC',K:'#D9D9D9'};
+const PLAYER_NOTES={'Tyler Warren':'hurt peepee','Breece Hall':'hurt peepee','Josh Jacobs':'hurt peepee'};
+function playerNote(n){ return PLAYER_NOTES[(n||'').split(',')[0].trim()]||''; }
 const POSTXT={QB:'#ffffff'}; // dark QB needs light text; the rest are light bg -> dark text
 const posTxt=p=>POSTXT[p]||'#0b1017';
 const LSKEY='poe-draft-v1';
@@ -1286,7 +1295,7 @@ function renderPool(){
    }
    return `<tr class="prow" onclick="openPick('${p.n.replace(/'/g,"\\'")}')">
    <td class="mut">${p.ovr??''}</td>
-   <td><b>${p.n.split(',')[0]}</b></td>
+   <td><b>${p.n.split(',')[0]}</b>${playerNote(p.n)?` <span title="${playerNote(p.n)}" style="color:var(--bad)">⚠️</span>`:''}</td>
    <td><span class="ptag" style="background:${POSCOL[p.p]||'#555'};color:${posTxt(p.p)}">${p.p}</span></td>
    <td class="num mut">${p.pr??''}</td>
    <td class="mut">${p.t}</td><td class="num mut">${p.b??''}</td>
@@ -1306,6 +1315,9 @@ function openPick(name,opts={}){
  const tag=document.getElementById('pkPosTag');
  tag.textContent=p.p+(p.pr?' · #'+p.pr+' at position':'');
  tag.style.background=POSCOL[p.p]||'#555'; tag.style.color=posTxt(p.p);
+ const warnEl=document.getElementById('pkWarn'); const note=playerNote(p.n);
+ if(note){ warnEl.style.display='block'; warnEl.innerHTML='<div style="margin-top:10px;padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--bad) 16%,transparent);border:1px solid color-mix(in srgb,var(--bad) 50%,transparent);color:var(--bad);font-weight:700;font-size:13.5px">⚠️ '+note+'</div>'; }
+ else { warnEl.style.display='none'; warnEl.innerHTML=''; }
  const rows=[
   ['NFL team',p.t||'—'],
   ['Bye week',p.b??'—'],
@@ -1343,7 +1355,25 @@ function renderPickTeams(){
    return `<button class="tbtn ${pickCtx.selTeam===t?'on':''} ${cant?'cant':''}" onclick="pickCtx.selTeam='${t}';renderPickTeams()">${t}<span class="m">${note}</span></button>`;
  }).join('');
 }
-function pickValidate(){renderPickTeams();}
+let cdTimer=null, cdN=0;
+function cdRender(done){ const big=document.getElementById('cdBig'); if(!big)return;
+ big.style.display='flex';
+ if(done){ big.textContent='SOLD?'; big.className='cdbig sold'; }
+ else { big.textContent=cdN; big.className='cdbig'; } }
+function stopCountdown(){ if(cdTimer){clearInterval(cdTimer);cdTimer=null;} cdN=0;
+ const big=document.getElementById('cdBig'); if(big)big.style.display='none';
+ const b=document.getElementById('pkCountdown'); if(b)b.textContent='⏱ Final countdown';
+ const go=document.getElementById('pkGo'); if(go)go.classList.remove('pulse'); }
+function toggleCountdown(){ if(cdTimer){ stopCountdown(); return; }   // click again = stop
+ const b=document.getElementById('pkCountdown'), go=document.getElementById('pkGo');
+ go.classList.remove('pulse');
+ cdN=3; cdRender(); b.textContent='✋ Stop';
+ cdTimer=setInterval(()=>{ cdN--;
+   if(cdN>=1){ cdRender(); }
+   else { clearInterval(cdTimer); cdTimer=null; cdRender(true);   // ends on "SOLD?" — does NOT auto-sell
+     b.textContent='⏱ Final countdown'; go.classList.add('pulse'); }
+ }, 900); }
+function pickValidate(){ if(cdTimer)stopCountdown(); renderPickTeams(); }   // a new bid (price/team change) cancels the countdown
 function confirmPick(){
  const err=document.getElementById('pkErr');
  const price=Math.round(+document.getElementById('pkPrice').value);
@@ -1376,7 +1406,7 @@ function confirmPick(){
  save(); closePick();
  if(S.phase==='draft')render(); else renderKeepers();
 }
-function closePick(){const ov=document.getElementById('pickOverlay');ov.classList.remove('show');ov.classList.remove('min');pickCtx=null;}
+function closePick(){stopCountdown();const ov=document.getElementById('pickOverlay');ov.classList.remove('show');ov.classList.remove('min');pickCtx=null;}
 // ============ DETAILED PICK LOG (spreadsheet-style) ============
 function plogRow(pk,rLabel,pkNum){
  const pl=playerByName(pk.n)||{};
@@ -1889,6 +1919,11 @@ const ACTUAL_KEEPERS={
  Mitch:[['Omarion Hampton',36],['Malik Nabers',34]]
 };
 const KG_TRADED=new Set(['brockbowers','devonachane']);   // traded post-keeper — count if predicted kept by anyone
+// League price tendencies: median auction price ÷ FP value, by position & tier (2020–2025, 1,012 auction picks).
+// The league overpays for elite/high RBs and top studs; gets bargains at the cheap end.
+const LGMULT={RB:{elite:1.45,high:1.50,mid:1.19,low:0.75},WR:{elite:1.19,high:1.11,mid:0.85,low:0.57},TE:{elite:1.21,high:1.21,mid:1.15,low:0.78},QB:{elite:1.07,high:1.07,mid:0.94,low:0.57},DST:{elite:1,high:1,mid:1,low:1},K:{elite:1,high:1,mid:1,low:1}};
+function lgTier(v){ return v>=40?'elite':v>=25?'high':v>=12?'mid':'low'; }
+function lgCost(pos,fp){ const m=(LGMULT[pos]||{})[lgTier(fp)]||1; return Math.round(fp*m); }
 function kgPN(s){ return (s||'').toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b/g,'').replace(/[^a-z]/g,''); }
 function kgActualNorm(team){ return (ACTUAL_KEEPERS[team]||[]).map(x=>kgPN(x[0])); }
 function kgPickCorrect(team,player){ const n=kgPN(player); return kgActualNorm(team).includes(n) || KG_TRADED.has(n); }
@@ -2042,6 +2077,22 @@ function renderMetrics(){
  h+='<h3 style="font-size:15px;margin:22px 0 9px">🧠 Best value kept (projected − keeper cost)</h3><div class="mpanel"><table class="mtbl"><thead><tr><th>Team</th><th class="num">Keeper $</th><th class="num">Projected $</th><th class="num">Savings</th></tr></thead><tbody>';
  byVal.forEach(x=>{const s=x.proj-x.spend;h+=`<tr><td><b>${x.t}</b></td><td class="num">${money(x.spend)}</td><td class="num">${money(x.proj)}</td><td class="num ${s>=0?'good':'bad'}">${s>=0?'+':''}${money(s)}</td></tr>`;});
  h+='</tbody></table></div>';
+ // LEAGUE-ADJUSTED value — project each keeper against how THIS league actually prices positions/tiers
+ const lgc=k=>lgCost(k.pos,k.fp);
+ const teamLg=team.map(x=>{const lc=sum(x.players,lgc); return {t:x.t,spend:x.spend,lc,save:lc-x.spend};}).sort((a,b)=>b.save-a.save);
+ h+='<h3 style="font-size:15px;margin:22px 0 9px">🏦 League-adjusted savings <span class="mut" style="font-weight:400;font-size:12px">what they’d really cost in THIS auction</span></h3>';
+ h+='<div class="mpanel" style="background:transparent;border:0;padding:0"><p class="mut" style="font-size:12.5px;margin:0 0 10px">FantasyPros value is neutral. Your league actually pays a premium on what it covets — historically about <b style="color:var(--txt)">1.45–1.50×</b> FP value for elite/high RBs, ~1.1–1.2× for top WR/TE, and bargains (0.6–0.8×) at the cheap end. These projections apply those tendencies.</p></div>';
+ h+='<div class="mpanel"><table class="mtbl"><thead><tr><th>Pos</th><th class="num">Elite $40+</th><th class="num">High $25–39</th><th class="num">Mid $12–24</th><th class="num">Cheap &lt;$12</th></tr></thead><tbody>';
+ ['RB','WR','TE','QB'].forEach(p=>{const m=LGMULT[p];h+=`<tr><td>${tag(p)}</td><td class="num">${m.elite}×</td><td class="num">${m.high}×</td><td class="num">${m.mid}×</td><td class="num">${m.low}×</td></tr>`;});
+ h+='</tbody></table></div>';
+ h+='<div class="mpanel" style="margin-top:12px"><table class="mtbl"><thead><tr><th>Team</th><th class="num">Kept $</th><th class="num">League value</th><th class="num">League savings</th></tr></thead><tbody>';
+ teamLg.forEach(t=>{h+=`<tr><td><b>${t.t}</b></td><td class="num">${money(t.spend)}</td><td class="num">${money(t.lc)}</td><td class="num ${t.save>=0?'good':'bad'}">${t.save>=0?'+':''}${money(t.save)}</td></tr>`;});
+ h+='</tbody></table></div>';
+ h+=`<p class="mnote"><b>${teamLg[0].t}</b> banked the most real value — ${money(teamLg[0].save)} under what these players would actually go for here. <b>${teamLg[teamLg.length-1].t}</b> is underwater (paid above league market on keepers). RB keepers dominate the savings because that’s exactly where the league splurges.</p>`;
+ const kb=K.map(k=>({...k,lc:lgc(k),save:lgc(k)-k.price})).sort((a,b)=>b.save-a.save).slice(0,6);
+ h+='<h3 style="font-size:14px;margin:16px 0 8px">Biggest league-adjusted bargains</h3><div class="mpanel">';
+ h+=kb.map(k=>`<span class="mpill">${tag(k.pos)} ${k.name} <span class="mut">${k.mgr} · keep ${money(k.price)} vs ${money(k.lc)} → <b style="color:var(--good)">${money(k.save)} under</b></span></span>`).join('');
+ h+='</div>';
  h+='<h3 style="font-size:15px;margin:22px 0 9px">🏈 Positions kept</h3><div class="mpanel"><table class="mtbl"><thead><tr><th>Pos</th><th class="num">Kept</th><th class="num">Top 5</th><th class="num">Top 10</th><th class="num">Top 20</th><th class="num">Salary</th></tr></thead><tbody>';
  posAgg.sort((a,b)=>b.n-a.n).forEach(x=>{h+=`<tr><td>${tag(x.p)}</td><td class="num">${x.n}</td><td class="num">${x.t5}</td><td class="num">${x.t10}</td><td class="num">${x.t20}</td><td class="num">${money(x.spend)}</td></tr>`;});
  h+='</tbody></table></div>';
