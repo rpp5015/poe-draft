@@ -126,6 +126,10 @@ tr.gone .gname b{text-decoration:line-through}
 .tbtn.on{background:var(--acc);color:#04121d;border-color:var(--acc);font-weight:700}
 .tbtn.cant{opacity:.35;pointer-events:none}
 .tbtn .m{display:block;font-size:10px;color:inherit;opacity:.75}
+/* Bigger team tiles + max bid for TV viewing */
+.pkm-full .tbtn{font-size:18px;padding:12px 6px}
+.pkm-full .tbtn .m{font-size:18px;opacity:1;font-weight:900;color:var(--warn);margin-top:2px}
+.pkm-full .tbtn.on .m{color:#04121d}
 .err{color:var(--bad);font-size:12.5px;min-height:16px}
 /* setup */
 .setupgrid{display:grid;grid-template-columns:1fr;gap:6px;margin:10px 0;max-width:560px}
@@ -675,7 +679,7 @@ function draftedSet(){return new Set(S.picks.map(p=>p.n));}
 function teamPicks(t){return S.picks.filter(p=>p.team===t);}
 function spent(t){return teamPicks(t).reduce((s,p)=>s+p.price,0);}
 function budget(t){return BUDGET-spent(t);}
-function maxBid(t){return budget(t)-(NSLOTS-teamPicks(t).length)+1;} // = bud -15 + filled
+function maxBid(t){return budget(t)-Math.max(0,NSLOTS-teamPicks(t).length-1);} // reserve $1 per unfilled mandatory slot; 0 once roster (16) is full so the draft can continue
 function slotEligible(pos,token){
  if(token==='BN')return true;
  if(token==='FLX')return FLEX_OK.includes(pos);
@@ -716,7 +720,9 @@ function assignSlots(t){
  if(fi>=0){ const c=FLEX_OK.flatMap(p=>byPos[p]||[]).filter(x=>!used.has(x.pk)).sort(better)[0];
    if(c){slots[fi].pick=c.pk;used.add(c.pk);} }
  items.filter(x=>!used.has(x.pk)).forEach(x=>{ let idx=slots.findIndex(s=>!s.pick&&s.slot==='BN');
-   if(idx<0)idx=slots.findIndex(s=>!s.pick); if(idx>=0){slots[idx].pick=x.pk;used.add(x.pk);} });
+   if(idx<0)idx=slots.findIndex(s=>!s.pick);
+   if(idx>=0){slots[idx].pick=x.pk;used.add(x.pk);}
+   else { slots.push({slot:'BN',pick:x.pk}); used.add(x.pk); } });   // overflow → extra bench rows (endless draft)
  return slots;
 }
 function tokenOccupant(t,token){ // who currently sits in a specific RB1/RB2/WR1/WR2 slot
@@ -738,6 +744,7 @@ function resetLineup(t){ if(RO)return; if(S.lineup)delete S.lineup[t]; save(); s
 //   slack ≤ 0  → only positions that fill an empty starter/flex slot
 // Returns null when unrestricted, or a Set of allowed positions.
 function draftablePositions(t){
+ if(teamPicks(t).length>=NSLOTS) return null;   // mandatory roster filled — any position allowed (endless draft)
  const slots=assignSlots(t);
  const emptyStarters=slots.filter(s=>!s.pick&&s.slot!=='BN');
  const remaining=NSLOTS-teamPicks(t).length;
@@ -1185,13 +1192,12 @@ function render(){
 }
 function renderHdr(){
  const totSpent=S.picks.reduce((s,p)=>s+p.price,0);
- document.getElementById('hdrStats').textContent=`${S.picks.length}/${NTEAMS*NSLOTS} picks · $${totSpent} spent · $${NTEAMS*BUDGET-totSpent} remaining in room`;
+ document.getElementById('hdrStats').textContent=`${S.picks.length} picks · $${totSpent} spent · $${NTEAMS*BUDGET-totSpent} remaining in room`;
  maybeCelebrate();
 }
 // ============ DRAFT COMPLETE ============
 function draftComplete(){
- return S.phase==='draft' && S.teams.length>=NTEAMS &&
-   S.teams.slice(0,NTEAMS).every(t=>teamPicks(t).length>=NSLOTS);
+ return false;   // endless draft — the board never stops at a round; nominations continue as long as you want
 }
 let celebrated=false;
 function maybeCelebrate(){
@@ -1230,12 +1236,13 @@ function renderBoard(){
      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${t}</div>
      <div class="bud" ${c?`style="color:${tc}"`:''}>Budget $${budget(t)}</div><div class="mx" ${c?`style="color:${tc};opacity:.72"`:''}>Max bid $${Math.max(maxBid(t),0)}</div></div>`;
  }
- const rows=SLOTS.map((s,i)=>i);
- for(const ri of rows){
-   h+=`<div class="bc lbl">${slotName(SLOTS[ri])}</div>`;
+ const sa={}; S.teams.forEach(t=>sa[t]=assignSlots(t));
+ const maxRows=Math.max(SLOTS.length, ...S.teams.map(t=>sa[t].length));
+ for(let ri=0;ri<maxRows;ri++){
+   h+=`<div class="bc lbl">${slotName(SLOTS[ri]||'BN')}</div>`;
    for(const t of S.teams){
-     const sl=assignSlots(t)[ri];
-     if(sl.pick){
+     const sl=sa[t][ri];
+     if(sl&&sl.pick){
        const pl=playerByName(sl.pick.n);
        const shortN=sl.pick.n.split(',')[0];
        h+=`<div class="bc" title="${sl.pick.n} — $${sl.pick.price}${sl.pick.keeper?' (keeper)':''}" onclick="openEdit(${S.picks.indexOf(sl.pick)})" style="cursor:pointer;background:${(POSCOL[(pl||{}).p]||'#555')}55">
@@ -1370,11 +1377,10 @@ function renderPickTeams(){
  const price=+document.getElementById('pkPrice').value||1;
  const pl=playerByName(pickCtx.n)||{};
  g.innerHTML=S.teams.map(t=>{
-   const full=teamPicks(t).length>=NSLOTS;
    const dp=(S.phase==='draft'&&!pickCtx.keeperMode)?draftablePositions(t):null;
    const posBlocked=dp&&!dp.has(pl.p);
-   const cant=S.phase==='draft'&&!pickCtx.keeperMode&&(full||maxBid(t)<price||posBlocked);
-   const note=full?'full':posBlocked?('needs '+[...dp].join('/')):('max $'+Math.max(maxBid(t),0));
+   const cant=S.phase==='draft'&&!pickCtx.keeperMode&&(maxBid(t)<price||posBlocked);
+   const note=posBlocked?('needs '+[...dp].join('/')):('max $'+Math.max(maxBid(t),0));
    return `<button class="tbtn ${pickCtx.selTeam===t?'on':''} ${cant?'cant':''}" onclick="pickCtx.selTeam='${t}';renderPickTeams()">${t}<span class="m">${note}</span></button>`;
  }).join('');
 }
@@ -1404,7 +1410,6 @@ function confirmPick(){
  if(!price||price<1){err.textContent='Enter a winning bid ($1+).';return;}
  if(!pickCtx.selTeam){err.textContent='Select the winning team.';return;}
  const t=pickCtx.selTeam;
- if(teamPicks(t).length>=NSLOTS){err.textContent=t+' roster is full.';return;}
  if(draftedSet().has(p.n)){err.textContent=p.n+' already drafted.';return;}
  if(S.phase==='draft'&&!pickCtx.keeperMode){
    const dp=draftablePositions(t);
@@ -1502,8 +1507,6 @@ function saveEdit(){
  const nt=document.getElementById('edTeam').value;
  // validate: budget of target team excluding this pick
  const otherSpent=S.picks.filter((x,j)=>j!==editIdx&&x.team===nt).reduce((s,x)=>s+x.price,0);
- const otherCount=S.picks.filter((x,j)=>j!==editIdx&&x.team===nt).length;
- if(otherCount>=NSLOTS){alert(nt+' roster is full.');return;}
  if(otherSpent+np>BUDGET){alert('That price would put '+nt+' over $200.');return;}
  if(MODE==='operator'){ cloudUpdatePick(pk._id,{price:np,team:nt}); closeEdit(); return; }
  pk.price=np; pk.team=nt; save(); closeEdit(); render();
