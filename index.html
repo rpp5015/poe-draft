@@ -679,7 +679,7 @@ function draftedSet(){return new Set(S.picks.map(p=>p.n));}
 function teamPicks(t){return S.picks.filter(p=>p.team===t);}
 function spent(t){return teamPicks(t).reduce((s,p)=>s+p.price,0);}
 function budget(t){return BUDGET-spent(t);}
-function maxBid(t){return budget(t)-Math.max(0,NSLOTS-teamPicks(t).length-1);} // reserve $1 per unfilled mandatory slot; 0 once roster (16) is full so the draft can continue
+function maxBid(t){return budget(t)-(NSLOTS-teamPicks(t).length)+1;} // = bud -15 + filled
 function slotEligible(pos,token){
  if(token==='BN')return true;
  if(token==='FLX')return FLEX_OK.includes(pos);
@@ -720,9 +720,7 @@ function assignSlots(t){
  if(fi>=0){ const c=FLEX_OK.flatMap(p=>byPos[p]||[]).filter(x=>!used.has(x.pk)).sort(better)[0];
    if(c){slots[fi].pick=c.pk;used.add(c.pk);} }
  items.filter(x=>!used.has(x.pk)).forEach(x=>{ let idx=slots.findIndex(s=>!s.pick&&s.slot==='BN');
-   if(idx<0)idx=slots.findIndex(s=>!s.pick);
-   if(idx>=0){slots[idx].pick=x.pk;used.add(x.pk);}
-   else { slots.push({slot:'BN',pick:x.pk}); used.add(x.pk); } });   // overflow → extra bench rows (endless draft)
+   if(idx<0)idx=slots.findIndex(s=>!s.pick); if(idx>=0){slots[idx].pick=x.pk;used.add(x.pk);} });
  return slots;
 }
 function tokenOccupant(t,token){ // who currently sits in a specific RB1/RB2/WR1/WR2 slot
@@ -744,7 +742,6 @@ function resetLineup(t){ if(RO)return; if(S.lineup)delete S.lineup[t]; save(); s
 //   slack ≤ 0  → only positions that fill an empty starter/flex slot
 // Returns null when unrestricted, or a Set of allowed positions.
 function draftablePositions(t){
- if(teamPicks(t).length>=NSLOTS) return null;   // mandatory roster filled — any position allowed (endless draft)
  const slots=assignSlots(t);
  const emptyStarters=slots.filter(s=>!s.pick&&s.slot!=='BN');
  const remaining=NSLOTS-teamPicks(t).length;
@@ -942,7 +939,7 @@ function openDrafts(){
  list.innerHTML='<div class="mut" style="padding:10px">Loading…</div>';
  db.collection('drafts').get().then(qs=>{
    if(qs.empty){ list.innerHTML='<div class="mut" style="padding:10px">No drafts found yet. Create one from the home screen.</div>'; return; }
-   const rows=qs.docs.map(d=>{const m=d.data()||{}; return {id:d.id,name:m.name||d.id,phase:m.phase||'setup',nom:m.nomIdx||0,upd:m.updatedAt||0};})
+   const rows=qs.docs.map(d=>{const m=d.data()||{}; return {id:d.id,name:m.name||d.id,phase:m.phase||'setup',nom:m.nomIdx||0,upd:m.updatedAt||0,official:!!m.official};})
      .sort((a,b)=>b.upd-a.upd);
    list.innerHTML=rows.map(r=>{
      const live=r.phase==='draft';
@@ -951,11 +948,15 @@ function openDrafts(){
        <div style="flex:1;min-width:0">
          <b>${r.name}</b>
          <span class="pill" style="background:${live?'#143a27':'#3a3017'};color:${live?'var(--good)':'var(--warn)'};font-size:10px">${live?'live · pick '+(r.nom+1):'setup'}</span>
+         ${r.official?'<span class="pill" style="background:#2a2140;color:#c9b8ff;font-size:10px">🔒 Official</span>':''}
          <div class="mut" style="font-size:11px">${r.upd?new Date(r.upd).toLocaleString():''}</div>
        </div>
        <button class="btn small" onclick="askSold(()=>joinDraft('${r.id}','operate'))">🔨 Auctioneer</button>
        <button class="btn small" onclick="joinDraft('${r.id}','watch')">👀 Watcher</button>
-       <button class="btn small danger" onclick="deleteDraft('${r.id}',&quot;${nm}&quot;)">Delete</button>
+       ${r.official
+         ? `<button class="btn small" title="Official drafts can't be deleted. Unlock to allow removal." onclick="setOfficial('${r.id}',false,&quot;${nm}&quot;)">🔓 Unlock</button>`
+         : `<button class="btn small" title="Protect this draft from deletion" onclick="setOfficial('${r.id}',true)">🔒 Mark official</button>
+            <button class="btn small danger" onclick="deleteDraft('${r.id}',&quot;${nm}&quot;)">Delete</button>`}
      </div>`;
    }).join('');
  }).catch(e=>{ list.innerHTML='<div class="bad" style="padding:10px">Error loading drafts: '+e.message+'</div>'; });
@@ -966,14 +967,22 @@ function joinDraft(id,role){
  if(role==='watch'){ MODE='spectator'; RO=true; } else { MODE='operator'; RO=false; }
  cloudSubscribe(); enterApp();
 }
+function setOfficial(id,val,name){
+ if(!val && !confirm('Unlock “'+(name||id)+'”?\nOnce unlocked it can be deleted by anyone.'))return;
+ db.collection('drafts').doc(id).set({official:!!val},{merge:true})
+   .then(()=>openDrafts()).catch(e=>alert('Failed: '+e.message));
+}
 function deleteDraft(id,name){
- if(!confirm('Delete draft “'+name+'”?\nThis permanently removes it and all its picks for everyone.'))return;
  const ref=db.collection('drafts').doc(id);
- ref.collection('picks').get()
-   .then(qs=>{ const b=db.batch(); qs.forEach(d=>b.delete(d.ref)); return b.commit(); })
-   .then(()=>ref.delete())
-   .then(()=>openDrafts())
-   .catch(e=>alert('Delete failed: '+e.message));
+ ref.get().then(d=>{
+   if(d.exists && d.data() && d.data().official){ alert('“'+name+'” is marked Official and is protected. Unlock it first to delete.'); return; }
+   if(!confirm('Delete draft “'+name+'”?\nThis permanently removes it and all its picks for everyone.'))return;
+   ref.collection('picks').get()
+     .then(qs=>{ const b=db.batch(); qs.forEach(x=>b.delete(x.ref)); return b.commit(); })
+     .then(()=>ref.delete())
+     .then(()=>openDrafts())
+     .catch(e=>alert('Delete failed: '+e.message));
+ }).catch(e=>alert('Delete failed: '+e.message));
 }
 // cloud setup modal
 function openCloudSetup(){
@@ -1167,8 +1176,19 @@ function setView(v){
  if(v==='board'&&draft){renderBoard();renderNom();renderRounds();renderHdr();}
 }
 // ============ BOARD ============
+function autoSkipFull(){
+ // Once a team's roster is full, its nomination turn is skipped automatically — advancing nomIdx
+ // past full teams. This keeps nominations going (extra rounds) until every roster is filled.
+ if(!S||S.phase!=='draft'||RO) return;   // only the auctioneer/local advances; spectators read it
+ let changed=false, guard=0;
+ while(!draftComplete() && teamPicks(slotTeam(S.nomIdx||0)).length>=NSLOTS && guard++<3000){
+   S.nomIdx=(S.nomIdx||0)+1; changed=true;
+ }
+ if(changed){ if(MODE==='operator')cloudSaveMeta(); else save(); }
+}
 function render(){
  if(document.getElementById('appHeader').style.display==='none') return; // still on home screen
+ autoSkipFull();
  updateCloudBadge();
  const draft=S.phase==='draft';
  if(RO){ // spectator: always the live view, never the setup form
@@ -1192,12 +1212,13 @@ function render(){
 }
 function renderHdr(){
  const totSpent=S.picks.reduce((s,p)=>s+p.price,0);
- document.getElementById('hdrStats').textContent=`${S.picks.length} picks · $${totSpent} spent · $${NTEAMS*BUDGET-totSpent} remaining in room`;
+ document.getElementById('hdrStats').textContent=`${S.picks.length}/${NTEAMS*NSLOTS} picks · $${totSpent} spent · $${NTEAMS*BUDGET-totSpent} remaining in room`;
  maybeCelebrate();
 }
 // ============ DRAFT COMPLETE ============
 function draftComplete(){
- return false;   // endless draft — the board never stops at a round; nominations continue as long as you want
+ return S.phase==='draft' && S.teams.length>=NTEAMS &&
+   S.teams.slice(0,NTEAMS).every(t=>teamPicks(t).length>=NSLOTS);
 }
 let celebrated=false;
 function maybeCelebrate(){
@@ -1236,13 +1257,12 @@ function renderBoard(){
      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${t}</div>
      <div class="bud" ${c?`style="color:${tc}"`:''}>Budget $${budget(t)}</div><div class="mx" ${c?`style="color:${tc};opacity:.72"`:''}>Max bid $${Math.max(maxBid(t),0)}</div></div>`;
  }
- const sa={}; S.teams.forEach(t=>sa[t]=assignSlots(t));
- const maxRows=Math.max(SLOTS.length, ...S.teams.map(t=>sa[t].length));
- for(let ri=0;ri<maxRows;ri++){
-   h+=`<div class="bc lbl">${slotName(SLOTS[ri]||'BN')}</div>`;
+ const rows=SLOTS.map((s,i)=>i);
+ for(const ri of rows){
+   h+=`<div class="bc lbl">${slotName(SLOTS[ri])}</div>`;
    for(const t of S.teams){
-     const sl=sa[t][ri];
-     if(sl&&sl.pick){
+     const sl=assignSlots(t)[ri];
+     if(sl.pick){
        const pl=playerByName(sl.pick.n);
        const shortN=sl.pick.n.split(',')[0];
        h+=`<div class="bc" title="${sl.pick.n} — $${sl.pick.price}${sl.pick.keeper?' (keeper)':''}" onclick="openEdit(${S.picks.indexOf(sl.pick)})" style="cursor:pointer;background:${(POSCOL[(pl||{}).p]||'#555')}55">
@@ -1264,6 +1284,12 @@ function moveSelect(t,pick,pl){
  return `<select class="movesel" onchange="setLineup('${esc(t)}','${esc(pick.n)}',this.value)">`+
    opts.map(o=>`<option value="${o[0]}" ${cur===o[0]?'selected':''}>${o[1]}</option>`).join('')+`</select>`;
 }
+function copyName(e,name){ e.stopPropagation();
+ const b=e.currentTarget, ok=()=>{ const o=b.textContent; b.textContent='✓'; setTimeout(()=>{b.textContent=o;},900); };
+ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(name).then(ok).catch(()=>fallbackCopy(name,ok)); }
+ else fallbackCopy(name,ok);
+}
+function fallbackCopy(text,cb){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); if(cb)cb(); }
 function showTeam(t){
  const ov=document.getElementById('teamOverlay');
  const slots=assignSlots(t);
@@ -1274,7 +1300,7 @@ function showTeam(t){
   <table><thead><tr><th>Roster Slot</th><th>Player</th>${RO?'':'<th>Move to</th>'}<th class="num">Price</th><th class="num">Value</th></tr></thead><tbody>
   ${slots.map(s=>{const pl=s.pick?playerByName(s.pick.n):null; const pos=pl?pl.p:'';
     return `<tr><td class="mut">${slotFull(s.slot)}</td>
-      <td>${s.pick?(s.pick.keeper?'🔒 ':'')+s.pick.n:'—'}${pos?` <span class="postag" style="background:${POSCOL[pos]||'#556'}">${pos}</span>`:''}</td>
+      <td>${s.pick?`<button class="btn" style="padding:2px 7px;font-size:11px;margin-right:6px;vertical-align:middle" title="Copy name for ESPN" onclick="copyName(event,'${s.pick.n.split(',')[0].replace(/'/g,"\\'")}')">📋</button>`:''}${s.pick?(s.pick.keeper?'🔒 ':'')+s.pick.n:'—'}${pos?` <span class="postag" style="background:${POSCOL[pos]||'#556'}">${pos}</span>`:''}</td>
       ${RO?'':`<td>${s.pick?moveSelect(t,s.pick,pl||{}):''}</td>`}
       <td class="num">${s.pick?'$'+s.pick.price:''}</td><td class="num">${pl?'$'+pl.v:''}</td></tr>`;}).join('')}
   </tbody></table>
@@ -1377,10 +1403,11 @@ function renderPickTeams(){
  const price=+document.getElementById('pkPrice').value||1;
  const pl=playerByName(pickCtx.n)||{};
  g.innerHTML=S.teams.map(t=>{
+   const full=teamPicks(t).length>=NSLOTS;
    const dp=(S.phase==='draft'&&!pickCtx.keeperMode)?draftablePositions(t):null;
    const posBlocked=dp&&!dp.has(pl.p);
-   const cant=S.phase==='draft'&&!pickCtx.keeperMode&&(maxBid(t)<price||posBlocked);
-   const note=posBlocked?('needs '+[...dp].join('/')):('max $'+Math.max(maxBid(t),0));
+   const cant=S.phase==='draft'&&!pickCtx.keeperMode&&(full||maxBid(t)<price||posBlocked);
+   const note=full?'full':posBlocked?('needs '+[...dp].join('/')):('max $'+Math.max(maxBid(t),0));
    return `<button class="tbtn ${pickCtx.selTeam===t?'on':''} ${cant?'cant':''}" onclick="pickCtx.selTeam='${t}';renderPickTeams()">${t}<span class="m">${note}</span></button>`;
  }).join('');
 }
@@ -1410,6 +1437,7 @@ function confirmPick(){
  if(!price||price<1){err.textContent='Enter a winning bid ($1+).';return;}
  if(!pickCtx.selTeam){err.textContent='Select the winning team.';return;}
  const t=pickCtx.selTeam;
+ if(teamPicks(t).length>=NSLOTS){err.textContent=t+' roster is full.';return;}
  if(draftedSet().has(p.n)){err.textContent=p.n+' already drafted.';return;}
  if(S.phase==='draft'&&!pickCtx.keeperMode){
    const dp=draftablePositions(t);
@@ -1479,8 +1507,9 @@ function renderRounds(){
      h+=`<tr class="clock" id="clockRow"><td>${round}</td><td>${pin}</td><td>${owner}</td>
        <td colspan="9">▶ ${owner} is nominating…</td><td></td></tr>`;
    } else if(s<cur){
+     const wasFull=teamPicks(owner).length>=NSLOTS;
      h+=`<tr class="up"><td>${round}</td><td>${pin}</td><td>${owner}</td>
-       <td colspan="10" style="color:var(--mut);font-style:italic">passed / no sale</td></tr>`;
+       <td colspan="10" style="color:var(--mut);font-style:italic">${wasFull?'roster full — nomination skipped':'passed / no sale'}</td></tr>`;
    } else {
      h+=`<tr class="up"><td>${round}</td><td>${pin}</td><td>${owner}</td>
        <td><span class="slot">···</span></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
@@ -1507,6 +1536,8 @@ function saveEdit(){
  const nt=document.getElementById('edTeam').value;
  // validate: budget of target team excluding this pick
  const otherSpent=S.picks.filter((x,j)=>j!==editIdx&&x.team===nt).reduce((s,x)=>s+x.price,0);
+ const otherCount=S.picks.filter((x,j)=>j!==editIdx&&x.team===nt).length;
+ if(otherCount>=NSLOTS){alert(nt+' roster is full.');return;}
  if(otherSpent+np>BUDGET){alert('That price would put '+nt+' over $200.');return;}
  if(MODE==='operator'){ cloudUpdatePick(pk._id,{price:np,team:nt}); closeEdit(); return; }
  pk.price=np; pk.team=nt; save(); closeEdit(); render();
