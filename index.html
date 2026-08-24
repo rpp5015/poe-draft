@@ -2190,6 +2190,12 @@ function renderMetrics(){
   misses.slice(0,10).forEach(m=>{h+=`<tr><td><b>${m.name}</b></td><td class="mut">${m.team}</td><td class="num">${money(m.kc)}</td><td class="num">${money(m.price)}</td><td class="mut">${m.by}</td><td class="num bad">+${money(m.miss)}</td></tr>`;});
   h+='</tbody></table></div>';
   if(misses.length)h+=`<p class="mnote"><b>${misses[0].team}</b> let <b>${misses[0].name}</b> go (keepable at ${money(misses[0].kc)}) and it went ${money(misses[0].price)} to ${misses[0].by} — the biggest miss of the draft.</p>`;
+  // players that went for LESS than their keeper cost — smart non-keeps
+  const under=misses.filter(m=>m.miss<0).sort((a,b)=>a.miss-b.miss);
+  h+='<h3 style="font-size:15px;margin:22px 0 9px">🪙 Went cheaper than their keeper price <span class="mut" style="font-weight:400;font-size:12px">correctly let go — the market paid less</span></h3><div class="mpanel"><table class="mtbl"><thead><tr><th>Player</th><th>Let go by</th><th class="num">Keep $</th><th class="num">Went for</th><th>To</th><th class="num">Saved</th></tr></thead><tbody>';
+  under.slice(0,10).forEach(m=>{h+=`<tr><td><b>${m.name}</b></td><td class="mut">${m.team}</td><td class="num">${money(m.kc)}</td><td class="num">${money(m.price)}</td><td class="mut">${m.by}</td><td class="num good">${money(-m.miss)}</td></tr>`;});
+  h+='</tbody></table></div>';
+  if(under.length)h+=`<p class="mnote"><b>${under[0].team}</b> was right to let <b>${under[0].name}</b> go — keepable at ${money(under[0].kc)}, but the room only paid ${money(under[0].price)} (${money(-under[0].miss)} cheaper than keeping). ${under.length} eligible players went for under their keeper cost.</p>`;
  }
  h+='<h3 style="font-size:15px;margin:22px 0 9px">🏈 Positions kept</h3><div class="mpanel"><table class="mtbl"><thead><tr><th>Pos</th><th class="num">Kept</th><th class="num">Top 5</th><th class="num">Top 10</th><th class="num">Top 20</th><th class="num">Salary</th></tr></thead><tbody>';
  posAgg.sort((a,b)=>b.n-a.n).forEach(x=>{h+=`<tr><td>${tag(x.p)}</td><td class="num">${x.n}</td><td class="num">${x.t5}</td><td class="num">${x.t10}</td><td class="num">${x.t20}</td><td class="num">${money(x.spend)}</td></tr>`;});
